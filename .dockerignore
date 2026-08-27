@@ -1,0 +1,7 @@
+.git
+.github
+.vscode
+target
+*.log
+README.md
+spring-error.txt

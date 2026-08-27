@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: flowforge-postgres
+    environment:
+      POSTGRES_DB: flowforge
+      POSTGRES_USER: flowforge
+      POSTGRES_PASSWORD: flowforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - flowforge-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowforge -d flowforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: flowforge-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: flowforge
+      RABBITMQ_DEFAULT_PASS: flowforge
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    volumes:
+      - flowforge-rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: flowforge-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - flowforge-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      FLOWFORGE_DB_URL: jdbc:postgresql://postgres:5432/flowforge
+      FLOWFORGE_DB_USERNAME: flowforge
+      FLOWFORGE_DB_PASSWORD: ${FLOWFORGE_DB_PASSWORD:-flowforge}
+      FLOWFORGE_JPA_SHOW_SQL: "false"
+      FLOWFORGE_JWT_SECRET: ${FLOWFORGE_JWT_SECRET:-flowforge-local-development-secret-change-me-2026}
+      FLOWFORGE_RABBITMQ_HOST: rabbitmq
+      FLOWFORGE_RABBITMQ_PORT: 5672
+      FLOWFORGE_RABBITMQ_USERNAME: flowforge
+      FLOWFORGE_RABBITMQ_PASSWORD: ${FLOWFORGE_RABBITMQ_PASSWORD:-flowforge}
+      FLOWFORGE_REDIS_HOST: redis
+      FLOWFORGE_REDIS_PORT: 6379
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/api/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
+
+volumes:
+  flowforge-postgres-data:
+  flowforge-rabbitmq-data:
+  flowforge-redis-data:
