@@ -18,7 +18,8 @@ Implemented:
 - Correlation IDs, MDC logging, Prometheus metrics, and readiness checks
 - React + TypeScript dashboard
 
-Kubernetes, WSO2, and production deployment are not included.
+WSO2 API Manager is available as an optional local Compose profile. It is not
+started by the default stack.
 
 ## Run locally
 
@@ -59,6 +60,41 @@ docker compose up --build -d
 ```
 
 The backend is available at `http://localhost:8080`.
+
+### Optional WSO2 API gateway
+
+Start WSO2 with the backend and supporting services:
+
+```powershell
+docker compose --profile wso2 up -d --build
+.\infra\wso2\publish-api.ps1
+```
+
+The script idempotently creates or reuses `FlowForge API` v1, publishes it, and
+deploys a revision to the Default gateway environment. Verify its lifecycle and
+deployment through the Publisher API:
+
+```powershell
+docker compose --profile wso2 exec wso2-apim bash -c `
+	'curl -k -s -u admin:admin https://localhost:9443/api/am/publisher/v4/apis'
+docker compose --profile wso2 exec wso2-apim bash -c `
+	'curl -k -s -u admin:admin https://localhost:9443/api/am/publisher/v4/apis/{API_ID}/deployments'
+```
+
+The deployed default URL is `https://localhost:8243/flowforge/v1/jobs`.
+
+WSO2 APIM handles TLS termination and acts as a pure API Gateway proxy for the FlowForge endpoints, native JWKS validation is configured using `apim.jwt.issuer` but authorization is bypassed at the gateway level (`authType: None`). The `Authorization` header and third-party FlowForge JWT are passed through transparently to the Spring Boot backend, where `JwtAuthenticationFilter` comprehensively validates the JWT claims and enforces Role-Based Access Control.
+
+```bash
+# Validating Gateway Routing & Authentication (pass-through)
+curl -k -i -H "Authorization: Bearer <FlowForge-JWT>" -H "X-Correlation-ID: testing-001" https://localhost:8243/flowforge/v1/jobs
+```
+
+Stop WSO2 with:
+
+```powershell
+docker compose --profile wso2 down
+```
 
 ## Environment variables
 

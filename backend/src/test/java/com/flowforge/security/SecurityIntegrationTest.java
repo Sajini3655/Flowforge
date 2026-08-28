@@ -36,8 +36,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({AuthController.class, HealthController.class, ApiDefinitionController.class, JobController.class})
-@Import({SecurityConfig.class, JwtService.class, JwtAuthenticationFilter.class})
+@WebMvcTest({AuthController.class, HealthController.class, JwksController.class, ApiDefinitionController.class, JobController.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtTestConfiguration.class})
 class SecurityIntegrationTest {
 
     @Autowired

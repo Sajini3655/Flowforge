@@ -19,6 +19,9 @@ Thumbs.db
 .env
 .env.*
 
+# Local JWT signing keys
+infra/keys/*.pem
+
 # Logs
 *.log
 backend/spring-error.txt

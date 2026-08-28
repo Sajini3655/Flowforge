@@ -30,7 +30,7 @@ services:
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 30s
       retries: 5
 
   redis:
@@ -56,7 +56,11 @@ services:
       FLOWFORGE_DB_USERNAME: flowforge
       FLOWFORGE_DB_PASSWORD: ${FLOWFORGE_DB_PASSWORD:-flowforge}
       FLOWFORGE_JPA_SHOW_SQL: "false"
-      FLOWFORGE_JWT_SECRET: ${FLOWFORGE_JWT_SECRET:-flowforge-local-development-secret-change-me-2026}
+      FLOWFORGE_JWT_PRIVATE_KEY_PATH: /run/secrets/flowforge-private.pem
+      FLOWFORGE_JWT_PUBLIC_KEY_PATH: /run/secrets/flowforge-public.pem
+      FLOWFORGE_JWT_ISSUER: ${FLOWFORGE_JWT_ISSUER:-https://auth.flowforge.local}
+      FLOWFORGE_JWT_AUDIENCE: ${FLOWFORGE_JWT_AUDIENCE:-flowforge-api}
+      FLOWFORGE_JWT_KEY_ID: ${FLOWFORGE_JWT_KEY_ID:-flowforge-dev-1}
       FLOWFORGE_RABBITMQ_HOST: rabbitmq
       FLOWFORGE_RABBITMQ_PORT: 5672
       FLOWFORGE_RABBITMQ_USERNAME: flowforge
@@ -78,6 +82,30 @@ services:
       timeout: 5s
       start_period: 90s
       retries: 5
+    volumes:
+      - ./infra/keys:/run/secrets:ro
+
+  wso2-apim:
+    profiles: ["wso2"]
+    build:
+      context: ./infra/wso2
+      dockerfile: Dockerfile
+    image: flowforge-wso2:4.7.0-custom
+    environment:
+      FLOWFORGE_JWKS_URL: http://backend:8080/api/.well-known/jwks.json
+      FLOWFORGE_JWT_ISSUER: ${FLOWFORGE_JWT_ISSUER:-https://auth.flowforge.local}
+      FLOWFORGE_JWT_AUDIENCE: ${FLOWFORGE_JWT_AUDIENCE:-flowforge-api}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8243:8243"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:9763/services/Version"]
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 20
 
 volumes:
   flowforge-postgres-data:

@@ -4,6 +4,7 @@ import com.flowforge.common.GlobalExceptionHandler;
 import com.flowforge.common.ResourceNotFoundException;
 import com.flowforge.security.JwtAuthenticationFilter;
 import com.flowforge.security.JwtService;
+import com.flowforge.security.JwtTestConfiguration;
 import com.flowforge.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(JobController.class)
-@Import({GlobalExceptionHandler.class, SecurityConfig.class, JwtService.class, JwtAuthenticationFilter.class})
+@Import({GlobalExceptionHandler.class, SecurityConfig.class, JwtAuthenticationFilter.class, JwtTestConfiguration.class})
 @WithMockUser(roles = "USER")
 class JobControllerTest {
 

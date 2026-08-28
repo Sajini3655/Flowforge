@@ -1,0 +1,20 @@
+{
+  "name": "FlowForge API",
+  "version": "v1",
+  "context": "/flowforge",
+  "type": "HTTP",
+  "operations": [
+    {"target": "/jobs", "verb": "GET", "authType": "None", "throttlingPolicy": "Unlimited"},
+    {"target": "/jobs", "verb": "POST", "authType": "None", "throttlingPolicy": "Unlimited"},
+    {"target": "/jobs/{id}", "verb": "GET", "authType": "None", "throttlingPolicy": "Unlimited"}
+  ],
+  "endpointConfig": {
+    "endpoint_type": "http",
+    "sandbox_endpoints": {
+      "url": "http://backend:8080/api"
+    },
+    "production_endpoints": {
+      "url": "http://backend:8080/api"
+    }
+  }
+}
