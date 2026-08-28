@@ -1,0 +1,47 @@
+groups:
+  - name: flowforge_alerts
+    rules:
+      - alert: FlowForgeBackendDown
+        expr: up{job="flowforge-backend"} == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: "FlowForge backend instance is down"
+          description: "FlowForge backend target has been unreachable for more than 15 seconds."
+
+      - alert: FlowForgeDlqPublicationDetected
+        expr: increase(flowforge_jobs_dlq_publications_total[1m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Job routed to Dead Letter Queue"
+          description: "One or more jobs were rejected and routed to flowforge.job.dlq."
+
+      - alert: FlowForgeOutboxPublishFailure
+        expr: increase(flowforge_outbox_events_publish_failures_total[1m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Transactional outbox publisher failed to publish event"
+          description: "Outbox publisher encountered failures publishing to RabbitMQ."
+
+      - alert: FlowForgeHighLockContention
+        expr: increase(flowforge_redis_lock_contention_total[1m]) > 5
+        for: 30s
+        labels:
+          severity: info
+        annotations:
+          summary: "High Redis distributed lock contention"
+          description: "More than 5 lock contention events detected in the last minute."
+
+      - alert: FlowForgeJobFailuresDetected
+        expr: increase(flowforge_jobs_failed_total[1m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Jobs marked as FAILED"
+          description: "One or more jobs reached terminal FAILED status."

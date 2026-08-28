@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flowforge-config
+  namespace: flowforge
+  labels:
+    app.kubernetes.io/name: flowforge
+    app.kubernetes.io/part-of: flowforge-platform
+data:
+  FLOWFORGE_DB_URL: "jdbc:postgresql://postgres:5432/flowforge"
+  FLOWFORGE_DB_USERNAME: "flowforge"
+  FLOWFORGE_RABBITMQ_HOST: "rabbitmq"
+  FLOWFORGE_RABBITMQ_PORT: "5672"
+  FLOWFORGE_RABBITMQ_USERNAME: "flowforge"
+  FLOWFORGE_REDIS_HOST: "redis"
+  FLOWFORGE_REDIS_PORT: "6379"
+  FLOWFORGE_JWT_ISSUER: "https://auth.flowforge.local"
+  FLOWFORGE_JWT_AUDIENCE: "flowforge-api"
+  FLOWFORGE_JWT_KEY_ID: "flowforge-k8s-1"
+  FLOWFORGE_JWT_PRIVATE_KEY_PATH: "/run/secrets/flowforge-private.pem"
+  FLOWFORGE_JWT_PUBLIC_KEY_PATH: "/run/secrets/flowforge-public.pem"
+  FLOWFORGE_JWT_EXPIRATION_MS: "3600000"
+  FLOWFORGE_JOB_MAX_ATTEMPTS: "3"
+  FLOWFORGE_JOB_RETRY_DELAY_MS: "5000"
+  FLOWFORGE_JOB_LOCK_TTL_MS: "60000"
+  FLOWFORGE_OUTBOX_POLL_INTERVAL_MS: "1000"
+  FLOWFORGE_OUTBOX_BATCH_SIZE: "10"
+  FLOWFORGE_MANAGEMENT_ENDPOINTS: "health,info,prometheus"
+  FLOWFORGE_MANAGEMENT_PROMETHEUS_ENABLED: "true"
+  FLOWFORGE_MANAGEMENT_HEALTH_PROBES_ENABLED: "true"
+  SPRING_PROFILES_ACTIVE: "prod"

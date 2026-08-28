@@ -1,34 +1,113 @@
-name: FlowForge CI
+name: FlowForge CI/CD Pipeline
 
 on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
-  backend:
+  # =========================================================================
+  # 1. Backend Unit Tests & Code Quality
+  # =========================================================================
+  backend-unit-tests:
+    name: Backend Unit Tests & Quality
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Java 21
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Run backend tests
+
+      - name: Compile and run unit tests
         run: mvn -B -ntp clean test
-      - name: Package backend
+
+      - name: Upload Surefire test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: backend/target/surefire-reports/
+
+  # =========================================================================
+  # 2. Real Integration Tests (Testcontainers + Docker)
+  # =========================================================================
+  backend-integration-tests:
+    name: Backend Integration Tests (Testcontainers)
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run Testcontainers integration suites
+        run: mvn -B -ntp -Pintegration failsafe:integration-test failsafe:verify
+
+      - name: Upload Failsafe integration reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-failsafe-reports
+          path: backend/target/failsafe-reports/
+
+  # =========================================================================
+  # 3. Packaging & SBOM Artifact Verification
+  # =========================================================================
+  backend-package:
+    name: Package Backend Artifact & SBOM
+    runs-on: ubuntu-latest
+    needs: [backend-integration-tests]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Package application JAR
         run: mvn -B -ntp package -DskipTests
-      - name: Generate Maven SBOM
+
+      - name: Verify packaged artifact exists
+        run: |
+          JAR_FILE=$(ls target/flowforge-backend-*.jar 2>/dev/null | grep -v 'original' | head -n 1)
+          if [ -z "$JAR_FILE" ] || [ ! -f "$JAR_FILE" ]; then
+            echo "ERROR: Packaged executable JAR not found in backend/target/"
+            exit 1
+          fi
+          echo "Successfully packaged: $JAR_FILE"
+
+      - name: Generate CycloneDX SBOM
         run: mvn -B -ntp org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom -DskipTests
-      - name: Upload backend artifacts
+
+      - name: Upload backend build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: flowforge-backend-artifacts
@@ -37,55 +116,63 @@ jobs:
             backend/target/bom.json
             backend/target/bom.xml
 
-  backend-integration:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-      - name: Run backend integration tests
-        run: mvn -B -ntp -Pintegration verify
-
-  frontend:
+  # =========================================================================
+  # 4. Frontend Verification
+  # =========================================================================
+  frontend-build:
+    name: Frontend Quality & Build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install frontend dependencies
+
+      - name: Install dependencies
         run: npm ci
-      - name: Audit frontend dependencies
+
+      - name: Audit dependencies
         run: npm audit --audit-level=high
-      - name: Build frontend
+
+      - name: Build frontend distribution
         run: npm run build
+
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
         with:
           name: flowforge-frontend-dist
           path: frontend/dist
 
-  container:
+  # =========================================================================
+  # 5. Container & Cloud-Native Orchestration Validation
+  # =========================================================================
+  container-and-orchestration:
+    name: Docker & Kubernetes Validation
     runs-on: ubuntu-latest
-    needs: [backend, backend-integration, frontend]
+    needs: [backend-package, frontend-build]
     steps:
-      - uses: actions/checkout@v4
-      - name: Build backend image
-        run: docker build --tag flowforge-backend:${{ github.sha }} ./backend
-      - name: Scan backend image
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config
+
+      - name: Build backend Docker image (tagged with Git SHA)
+        run: |
+          docker build \
+            --tag flowforge-backend:${{ github.sha }} \
+            --tag flowforge-backend:latest \
+            ./backend
+
+      - name: Scan backend Docker image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: flowforge-backend:${{ github.sha }}
@@ -93,5 +180,10 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: CRITICAL,HIGH
-      - name: Validate Compose file
-        run: docker compose config
+
+      - name: Validate Kubernetes manifests with Kustomize
+        run: |
+          echo "Validating Kubernetes manifests using Kustomize..."
+          kubectl kustomize k8s/ > k8s-compiled.yaml
+          echo "Successfully rendered $(grep -c '^kind:' k8s-compiled.yaml) Kubernetes resources:"
+          grep '^kind:' k8s-compiled.yaml

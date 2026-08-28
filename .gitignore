@@ -21,6 +21,7 @@ Thumbs.db
 
 # Local JWT signing keys
 infra/keys/*.pem
+k8s/secret.yaml
 
 # Logs
 *.log

@@ -1,25 +1,8 @@
-# Architecture
+# Architecture Documentation
 
-## Current architecture
+FlowForge is an API Management + Distributed Workflow Platform built with Java 21, Spring Boot 3.5, PostgreSQL 16, RabbitMQ 3.13, Redis 7.4, WSO2 API Manager 4.7.0, and Kubernetes.
 
-```text
-React + TypeScript -> Spring Boot REST API
-       |       |       |
-       v       v       v
-        PostgreSQL RabbitMQ Redis
-        authoritative  locks only
-```
-
-The MVP deliberately does not introduce RabbitMQ, Redis, WSO2, or Kubernetes yet.
-
-The backend contains API controllers, transactional job and outbox services, the
-scheduled outbox publisher, RabbitMQ consumer, and worker. PostgreSQL remains the
-source of truth; RabbitMQ transports work and Redis coordinates concurrent workers.
-
-## Delivery architecture
-
-```text
-Source -> GitHub Actions tests/builds -> backend Docker image -> Docker Compose
-
-The repository does not claim Kubernetes or production deployment support.
-```
+Detailed architectural specifications and sequence diagrams are documented in:
+- **[System Architecture Specification](system-architecture.md)**: Deep dive into all system tiers, sequence diagrams for transactional outbox, retry queues, dead-letter queues, Redis locking, and cloud-native orchestration.
+- **[Architecture Decision Records](../decisions/)**: Foundational architectural decisions.
+- **[Deployment & Operations](../deployment/README.md)**: Containerization, Kubernetes manifests, and observability setup.
