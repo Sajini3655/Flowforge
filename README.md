@@ -223,7 +223,21 @@ docker compose up --build -d
 - Backend API: `http://localhost:8080`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000` (pre-configured dashboards)
-- RabbitMQ Management: `http://localhost:15672` (guest/guest)
+- RabbitMQ Management: `http://localhost:15673`
+
+For local host-process development, the backend defaults are aligned to the Compose services via the `local` profile:
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+This uses:
+- PostgreSQL: `jdbc:postgresql://localhost:5433/flowforge` (port 5433 avoids collisions with local host services; port 5432 is also mapped)
+- username: `flowforge`
+- password: `flowforge`
+- RabbitMQ: `localhost:5673`
+- Redis: `localhost:6379`
 
 ### 2. Optional: WSO2 API Gateway Profile
 ```powershell
