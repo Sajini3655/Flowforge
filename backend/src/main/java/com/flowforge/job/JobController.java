@@ -28,6 +28,11 @@ public class JobController {
         return service.findById(id);
     }
 
+    @PostMapping("/{id}/retry")
+    public Job retry(@PathVariable UUID id) {
+        return service.retry(id);
+    }
+
     @PostMapping
     public ResponseEntity<Job> create(@Valid @RequestBody JobRequest request,
                                       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {

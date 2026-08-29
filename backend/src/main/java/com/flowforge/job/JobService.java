@@ -67,6 +67,38 @@ public class JobService {
     }
 
     @Transactional
+    public Job retry(UUID id) {
+        Job job = findById(id);
+        if (job.getStatus() != JobStatus.FAILED) {
+            throw new IllegalStateException("Only failed jobs can be retried. Current status: " + job.getStatus());
+        }
+
+        job.setStatus(JobStatus.QUEUED);
+        job.setResult(null);
+        job.setAttemptCount(0);
+        Job savedJob = repository.save(job);
+
+        JobMessage message = new JobMessage(
+                savedJob.getId(),
+                savedJob.getType(),
+                savedJob.getRequestPayload(),
+                savedJob.getSubmittedBy().getId(),
+                MDC.get(CorrelationIdFilter.MDC_KEY));
+        String messagePayload;
+        try {
+            messagePayload = objectMapper.writeValueAsString(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize job message for outbox retry", e);
+        }
+        OutboxEvent event = new OutboxEvent(savedJob.getId(), messagePayload);
+        outboxRepository.save(event);
+        metrics.outboxCreated();
+        log.info("job retry initiated jobId={} type={} outboxEventId={}", savedJob.getId(), savedJob.getType(), event.getId());
+
+        return savedJob;
+    }
+
+    @Transactional
     public Job create(JobRequest request) {
         User submittedBy = currentUser();
         return createJob(request, submittedBy, null, null);

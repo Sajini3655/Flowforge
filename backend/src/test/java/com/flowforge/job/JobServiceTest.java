@@ -213,4 +213,51 @@ class JobServiceTest {
         assertThat(event.isPublished()).isFalse();
         assertThat(event.getPublishedAt()).isNull();
     }
+
+    @Test
+    void retryFailedJobQueuesJobAndSavesOutboxEvent() throws Exception {
+        User submitter = authenticatedUser("user@example.com", UserRole.USER);
+        Job failedJob = new Job();
+        UUID jobId = UUID.randomUUID();
+        org.springframework.test.util.ReflectionTestUtils.setField(failedJob, "id", jobId);
+        failedJob.setType("ECHO");
+        failedJob.setRequestPayload("{\"message\":\"retry-test\"}");
+        failedJob.setStatus(JobStatus.FAILED);
+        failedJob.setResult("Permanent failure");
+        failedJob.setAttemptCount(3);
+        failedJob.setSubmittedBy(submitter);
+
+        when(repository.findById(jobId)).thenReturn(Optional.of(failedJob));
+        when(repository.save(any(Job.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Job retried = service.retry(jobId);
+
+        assertThat(retried.getStatus()).isEqualTo(JobStatus.QUEUED);
+        assertThat(retried.getResult()).isNull();
+        assertThat(retried.getAttemptCount()).isEqualTo(0);
+
+        ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxRepository).save(captor.capture());
+        OutboxEvent event = captor.getValue();
+        assertThat(event.getJobId()).isEqualTo(jobId);
+        assertThat(event.isPublished()).isFalse();
+    }
+
+    @Test
+    void retryNonFailedJobThrowsIllegalStateException() {
+        User submitter = authenticatedUser("user@example.com", UserRole.USER);
+        Job completedJob = new Job();
+        UUID jobId = UUID.randomUUID();
+        org.springframework.test.util.ReflectionTestUtils.setField(completedJob, "id", jobId);
+        completedJob.setType("ECHO");
+        completedJob.setRequestPayload("{}");
+        completedJob.setStatus(JobStatus.COMPLETED);
+        completedJob.setSubmittedBy(submitter);
+
+        when(repository.findById(jobId)).thenReturn(Optional.of(completedJob));
+
+        assertThatThrownBy(() -> service.retry(jobId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Only failed jobs can be retried");
+    }
 }

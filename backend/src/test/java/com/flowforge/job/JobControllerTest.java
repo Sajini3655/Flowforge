@@ -128,4 +128,21 @@ class JobControllerTest {
 
         verify(service).findById(eq(jobId));
     }
+
+    @Test
+    void retryWhenJobExistsReturnsRetriedJob() throws Exception {
+        UUID jobId = UUID.randomUUID();
+        Job job = new Job();
+        ReflectionTestUtils.setField(job, "id", jobId);
+        job.setType("REPORT");
+        job.setStatus(JobStatus.QUEUED);
+        when(service.retry(jobId)).thenReturn(job);
+
+        mockMvc.perform(post("/api/jobs/{id}/retry", jobId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(jobId.toString()))
+                .andExpect(jsonPath("$.status").value("QUEUED"));
+
+        verify(service).retry(eq(jobId));
+    }
 }
