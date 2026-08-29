@@ -495,6 +495,112 @@ button.secondary:hover:not(:disabled) {
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
 }
 
+/* Metrics Ribbon */
+.metrics-ribbon {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-stat-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+.stat-subtext {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.stat-completed .stat-value {
+  color: #16a34a;
+}
+
+.stat-active .stat-value {
+  color: #d97706;
+}
+
+.stat-failed .stat-value {
+  color: #dc2626;
+}
+
+/* Card Header Subtitles & Actions */
+.card-subtitle {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-all-btn {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.view-all-btn:hover {
+  background: #eff6ff;
+  text-decoration: none;
+}
+
+/* Card Items Scrollable Container */
+.card-items-scroll {
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.card-items-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.card-items-scroll::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.card-items-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.card-items-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .container {
@@ -504,6 +610,10 @@ button.secondary:hover:not(:disabled) {
   .grid,
   .feature-grid {
     grid-template-columns: 1fr;
+  }
+
+  .metrics-ribbon {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   h1 {

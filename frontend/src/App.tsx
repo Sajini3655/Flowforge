@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 
 type Job = {
   id: string
@@ -21,12 +21,14 @@ type ApiDefinition = {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
+const RECENT_JOBS_LIMIT = 5
 
 function App() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [apis, setApis] = useState<ApiDefinition[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showAllJobs, setShowAllJobs] = useState(false)
 
   // Authentication state
   const [token, setToken] = useState<string>(() => localStorage.getItem('flowforge_token') || '')
@@ -44,6 +46,7 @@ function App() {
     setJobs([])
     setApis([])
     setError(null)
+    setShowAllJobs(false)
     if (reason) {
       setAuthError(reason)
     }
@@ -183,6 +186,36 @@ function App() {
     }
   }
 
+  // Derived Summary Metrics
+  const metrics = useMemo(() => {
+    const totalJobs = jobs.length
+    const completed = jobs.filter(j => j.status.toUpperCase() === 'COMPLETED').length
+    const running = jobs.filter(j => j.status.toUpperCase() === 'RUNNING').length
+    const queued = jobs.filter(j => ['QUEUED', 'SUBMITTED'].includes(j.status.toUpperCase())).length
+    const failed = jobs.filter(j => j.status.toUpperCase() === 'FAILED').length
+    const active = running + queued
+    const successRate = totalJobs > 0 ? Math.round((completed / totalJobs) * 100) : 0
+
+    return {
+      totalApis: apis.length,
+      totalJobs,
+      completed,
+      running,
+      queued,
+      failed,
+      active,
+      successRate,
+    }
+  }, [apis, jobs])
+
+  // Subset of jobs for display to prevent excessive page height
+  const displayedJobs = useMemo(() => {
+    if (showAllJobs) {
+      return jobs
+    }
+    return jobs.slice(0, RECENT_JOBS_LIMIT)
+  }, [jobs, showAllJobs])
+
   // --- UNMISTAKABLE CLEAN LANDING & SIGN IN VIEW ---
   if (!token) {
     return (
@@ -233,8 +266,8 @@ function App() {
           </form>
 
           <div className="demo-credentials-callout">
-            <span className="badge-demo">Demo Credentials</span>
-            <span><code>admin@flowforge.local</code> / <code>Admin123!</code></span>
+            <span className="badge-demo">Demo Account</span>
+            <span>Pre-configured for <code>admin@flowforge.local</code></span>
           </div>
         </section>
 
@@ -284,6 +317,7 @@ function App() {
 
       {error && <div className="error-banner">{error}</div>}
 
+      {/* Infrastructure Status Bar */}
       <div className="dashboard-status-bar">
         <div className="status-item">
           <span className="status-indicator online"></span>
@@ -299,6 +333,35 @@ function App() {
         </div>
       </div>
 
+      {/* Summary Metrics Ribbon */}
+      <section className="metrics-ribbon">
+        <div className="metric-stat-card">
+          <div className="stat-label">Registered APIs</div>
+          <div className="stat-value">{metrics.totalApis}</div>
+          <div className="stat-subtext">Active Catalogs</div>
+        </div>
+        <div className="metric-stat-card">
+          <div className="stat-label">Total Jobs</div>
+          <div className="stat-value">{metrics.totalJobs}</div>
+          <div className="stat-subtext">Dispatched</div>
+        </div>
+        <div className="metric-stat-card stat-completed">
+          <div className="stat-label">Completed</div>
+          <div className="stat-value">{metrics.completed}</div>
+          <div className="stat-subtext">{metrics.successRate}% Success Rate</div>
+        </div>
+        <div className="metric-stat-card stat-active">
+          <div className="stat-label">In-Flight / Queued</div>
+          <div className="stat-value">{metrics.active}</div>
+          <div className="stat-subtext">{metrics.queued} queued · {metrics.running} running</div>
+        </div>
+        <div className="metric-stat-card stat-failed">
+          <div className="stat-label">Failed / DLQ</div>
+          <div className="stat-value">{metrics.failed}</div>
+          <div className="stat-subtext">Requires Review</div>
+        </div>
+      </section>
+
       <section className="actions">
         <button onClick={createDemoJob}>
           Create Demo Job
@@ -312,50 +375,74 @@ function App() {
         <p className="loading-indicator">Loading system data...</p>
       ) : (
         <section className="grid">
+          {/* APIs Catalog Card */}
           <article className="card">
             <div className="card-header">
-              <h2>APIs</h2>
-              <span className="card-badge">Catalog</span>
+              <div>
+                <h2>APIs</h2>
+                <span className="card-subtitle">Gateway Managed Endpoints</span>
+              </div>
+              <span className="card-badge">Catalog ({apis.length})</span>
             </div>
             <p className="metric">{apis.length}</p>
-            {apis.length === 0 ? (
-              <p className="empty-state">No API definitions registered.</p>
-            ) : (
-              apis.map(api => (
-                <div className="item" key={api.id}>
-                  <div className="item-title-row">
-                    <strong>{api.name}</strong>
-                    <span className="status-tag status-completed">{api.status}</span>
+            <div className="card-items-scroll">
+              {apis.length === 0 ? (
+                <p className="empty-state">No API definitions registered.</p>
+              ) : (
+                apis.map(api => (
+                  <div className="item" key={api.id}>
+                    <div className="item-title-row">
+                      <strong>{api.name}</strong>
+                      <span className="status-tag status-completed">{api.status}</span>
+                    </div>
+                    <span>{api.version} · {api.basePath}</span>
+                    <small className="monospace">{api.backendUrl}</small>
                   </div>
-                  <span>{api.version} · {api.basePath}</span>
-                  <small className="monospace">{api.backendUrl}</small>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </article>
 
+          {/* Workflow Jobs Card */}
           <article className="card">
             <div className="card-header">
-              <h2>Workflow Jobs</h2>
-              <span className="card-badge">Asynchronous</span>
+              <div>
+                <h2>Workflow Jobs</h2>
+                <span className="card-subtitle">
+                  {showAllJobs ? `Showing all ${jobs.length} jobs` : `Showing recent ${displayedJobs.length} of ${jobs.length}`}
+                </span>
+              </div>
+              <div className="card-header-actions">
+                <span className="card-badge">Asynchronous</span>
+                {jobs.length > RECENT_JOBS_LIMIT && (
+                  <button
+                    className="view-all-btn"
+                    onClick={() => setShowAllJobs(!showAllJobs)}
+                  >
+                    {showAllJobs ? `Show Recent (${RECENT_JOBS_LIMIT})` : `View All (${jobs.length})`}
+                  </button>
+                )}
+              </div>
             </div>
             <p className="metric">{jobs.length}</p>
-            {jobs.length === 0 ? (
-              <p className="empty-state">
-                No workflow jobs found. Click &quot;Create Demo Job&quot; to dispatch a task.
-              </p>
-            ) : (
-              jobs.map(job => (
-                <div className="item" key={job.id}>
-                  <div className="item-title-row">
-                    <strong>{job.type}</strong>
-                    <span className={getStatusClass(job.status)}>{job.status}</span>
+            <div className="card-items-scroll">
+              {jobs.length === 0 ? (
+                <p className="empty-state">
+                  No workflow jobs found. Click &quot;Create Demo Job&quot; to dispatch a task.
+                </p>
+              ) : (
+                displayedJobs.map(job => (
+                  <div className="item" key={job.id}>
+                    <div className="item-title-row">
+                      <strong>{job.type}</strong>
+                      <span className={getStatusClass(job.status)}>{job.status}</span>
+                    </div>
+                    <small className="monospace">{job.id}</small>
+                    {job.result && <span className="job-result">{job.result}</span>}
                   </div>
-                  <small className="monospace">{job.id}</small>
-                  {job.result && <span className="job-result">{job.result}</span>}
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </article>
         </section>
       )}
