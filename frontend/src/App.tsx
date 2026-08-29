@@ -24,7 +24,7 @@ type ApiDefinition = {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api'
-const RECENT_JOBS_LIMIT = 5
+const RECENT_JOBS_LIMIT = 10
 
 function formatTimestamp(isoString?: string | null): string {
   if (!isoString) return 'N/A'
@@ -396,7 +396,6 @@ function App() {
     const queued = jobs.filter(j => ['QUEUED', 'SUBMITTED'].includes(j.status.toUpperCase())).length
     const failed = jobs.filter(j => j.status.toUpperCase() === 'FAILED').length
     const active = running + queued
-    const successRate = totalJobs > 0 ? Math.round((completed / totalJobs) * 100) : 0
 
     return {
       totalApis: apis.length,
@@ -406,11 +405,10 @@ function App() {
       queued,
       failed,
       active,
-      successRate,
     }
   }, [apis, jobs])
 
-  // Subset of jobs for display to prevent excessive page height
+  // Subset of jobs for display
   const displayedJobs = useMemo(() => {
     if (showAllJobs) {
       return jobs
@@ -421,24 +419,23 @@ function App() {
   // --- UNMISTAKABLE CLEAN LANDING & SIGN IN VIEW ---
   if (!token) {
     return (
-      <main className="container">
+      <main className="container unauth-container">
         <header className="hero-header">
-          <p className="eyebrow">API Management & Distributed Workflow Platform</p>
-          <h1>FlowForge</h1>
-          <p className="subtitle">
-            Manage APIs, submit workflow jobs, and monitor distributed processing.
-          </p>
+          <div className="forge-mark-large">
+            <span className="forge-ember">■</span>
+            <span className="forge-name">FlowForge</span>
+          </div>
+          <p className="hero-subhead">Developer Infrastructure &amp; Workflow Orchestration</p>
         </header>
 
-        <section className="login-card">
-          <div className="login-card-header">
-            <h2>Sign In to Console</h2>
-            <p>Access the API catalog, job orchestrator, and real-time system metrics.</p>
+        <section className="login-box">
+          <div className="login-header">
+            <h2>Sign in to console</h2>
           </div>
 
           <form className="auth-form" onSubmit={handleLogin}>
             <div className="form-group">
-              <label htmlFor="email">Email Address</label>
+              <label htmlFor="email">Email</label>
               <input
                 id="email"
                 type="email"
@@ -462,32 +459,14 @@ function App() {
 
             {authError && <div className="auth-error-banner">{authError}</div>}
 
-            <button type="submit" className="primary-btn signin-btn" disabled={authLoading}>
-              {authLoading ? 'Signing In...' : 'Sign In'}
+            <button type="submit" className="btn-forge-primary btn-block" disabled={authLoading}>
+              {authLoading ? 'Authenticating...' : 'Sign in'}
             </button>
           </form>
 
           <div className="demo-credentials-callout">
-            <span className="badge-demo">Demo Account</span>
-            <span>Pre-configured for <code>admin@flowforge.local</code></span>
-          </div>
-        </section>
-
-        <section className="feature-grid">
-          <div className="feature-card">
-            <div className="feature-icon">🛡️</div>
-            <h3>API Gateway & Security</h3>
-            <p>Managed endpoint catalog with WSO2 API Manager and RS256 asymmetric JWT verification.</p>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon">⚡</div>
-            <h3>Transactional Outbox</h3>
-            <p>Guaranteed event publishing via PostgreSQL CDC outbox pattern and RabbitMQ retries with DLQ.</p>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon">🔒</div>
-            <h3>Distributed Reliability</h3>
-            <p>Atomic Redis distributed locking to prevent duplicate workflow runs with idempotency checks.</p>
+            <span className="demo-tag">Default Account</span>
+            <span className="monospace">admin@flowforge.local</span>
           </div>
         </section>
       </main>
@@ -497,217 +476,227 @@ function App() {
   // --- AUTHENTICATED DASHBOARD VIEW ---
   return (
     <main className="container">
-      <header className="dashboard-header">
-        <div>
-          <p className="eyebrow">FlowForge Platform</p>
-          <h1>Dashboard</h1>
-          <p className="subtitle">
-            Manage APIs, submit workflow jobs, and monitor distributed processing.
-          </p>
+      {/* Platform Header */}
+      <header className="platform-header">
+        <div className="header-left">
+          <span className="forge-ember">■</span>
+          <span className="forge-name">FLOWFORGE</span>
+          <span className="header-divider">/</span>
+          <span className="header-context">ORCHESTRATOR</span>
         </div>
 
-        <div className="session-pill">
-          <div className="user-details">
-            <span className="auth-badge">Active Session</span>
-            <strong>{userEmail || 'admin@flowforge.local'}</strong>
+        <div className="header-right">
+          <div className="infra-live-strip">
+            <div className="infra-live-node">
+              <span className="live-dot online" />
+              <span className="live-name">PostgreSQL</span>
+            </div>
+            <div className="infra-live-node">
+              <span className="live-dot online" />
+              <span className="live-name">RabbitMQ</span>
+            </div>
+            <div className="infra-live-node">
+              <span className="live-dot online" />
+              <span className="live-name">Redis</span>
+            </div>
           </div>
-          <button className="secondary logout-btn" onClick={() => handleLogout()}>
-            Sign Out
+          <span className="header-meta-divider" />
+          <span className="session-user monospace">{userEmail || 'admin@flowforge.local'}</span>
+          <button className="btn-text-signout" onClick={() => handleLogout()} title="Sign out">
+            Sign out
           </button>
         </div>
       </header>
 
       {error && <div className="error-banner">{error}</div>}
 
-      {/* Infrastructure Status Bar */}
-      <div className="dashboard-status-bar">
-        <div className="status-item">
-          <span className="status-indicator online"></span>
-          <span>PostgreSQL: <strong>Connected</strong></span>
+      {/* Console Status Ribbon */}
+      <section className="console-status-bar">
+        <div className="status-stat">
+          <span className="stat-value monospace">{String(metrics.totalApis).padStart(2, '0')}</span>
+          <span className="stat-label">APIs</span>
         </div>
-        <div className="status-item">
-          <span className="status-indicator online"></span>
-          <span>RabbitMQ: <strong>Connected</strong></span>
+        <div className="status-stat">
+          <span className="stat-value monospace">{String(metrics.totalJobs).padStart(2, '0')}</span>
+          <span className="stat-label">WORKFLOWS</span>
         </div>
-        <div className="status-item">
-          <span className="status-indicator online"></span>
-          <span>Redis: <strong>Connected</strong></span>
+        <div className="status-stat">
+          <span className="stat-value stat-completed monospace">{String(metrics.completed).padStart(2, '0')}</span>
+          <span className="stat-label">COMPLETED</span>
         </div>
-      </div>
-
-      {/* Summary Metrics Ribbon */}
-      <section className="metrics-ribbon">
-        <div className="metric-stat-card">
-          <div className="stat-label">Registered APIs</div>
-          <div className="stat-value">{metrics.totalApis}</div>
-          <div className="stat-subtext">Active Catalogs</div>
+        <div className="status-stat">
+          <span className="stat-value stat-active monospace">{String(metrics.active).padStart(2, '0')}</span>
+          <span className="stat-label">IN-FLIGHT</span>
         </div>
-        <div className="metric-stat-card">
-          <div className="stat-label">Total Jobs</div>
-          <div className="stat-value">{metrics.totalJobs}</div>
-          <div className="stat-subtext">Dispatched</div>
-        </div>
-        <div className="metric-stat-card stat-completed">
-          <div className="stat-label">Completed</div>
-          <div className="stat-value">{metrics.completed}</div>
-          <div className="stat-subtext">{metrics.successRate}% Success Rate</div>
-        </div>
-        <div className="metric-stat-card stat-active">
-          <div className="stat-label">In-Flight / Queued</div>
-          <div className="stat-value">{metrics.active}</div>
-          <div className="stat-subtext">{metrics.queued} queued · {metrics.running} running</div>
-        </div>
-        <div className="metric-stat-card stat-failed">
-          <div className="stat-label">Failed / DLQ</div>
-          <div className="stat-value">{metrics.failed}</div>
-          <div className="stat-subtext">Requires Review</div>
+        <div className="status-stat">
+          <span className="stat-value stat-failed monospace">{String(metrics.failed).padStart(2, '0')}</span>
+          <span className="stat-label">FAILED / DLQ</span>
         </div>
       </section>
 
-      {/* Orchestrator Action Controls */}
-      <section className="actions">
+      {/* Control Actions Toolbar */}
+      <section className="toolbar-strip">
+        <div className="toolbar-actions">
+          <button
+            className="btn-forge-primary"
+            onClick={() => createDemoJob('ECHO')}
+            disabled={demoSubmitting}
+          >
+            {demoSubmitting ? 'Dispatching...' : 'Create Demo Job'}
+          </button>
+          <button
+            className="btn-forge-secondary"
+            onClick={() => createDemoJob('TRANSIENT_FAILURE')}
+            disabled={demoSubmitting}
+          >
+            Simulate DLQ Failure
+          </button>
+        </div>
         <button
-          onClick={() => createDemoJob('ECHO')}
-          disabled={demoSubmitting}
-          title="Dispatch standard workflow job that completes successfully"
-        >
-          {demoSubmitting ? 'Dispatching...' : 'Create Demo Job'}
-        </button>
-        <button
-          className="secondary"
-          onClick={() => createDemoJob('TRANSIENT_FAILURE')}
-          disabled={demoSubmitting}
-          title="Simulate transient failures that exhaust retries and route to DLQ"
-        >
-          Simulate DLQ Failure
-        </button>
-        <button
-          className="secondary"
+          className="btn-forge-refresh"
           onClick={() => loadData(true)}
           disabled={loading}
         >
-          {loading ? 'Refreshing...' : 'Refresh'}
+          {loading ? 'Refreshing...' : '↻ Refresh'}
         </button>
       </section>
 
       {loading && jobs.length === 0 ? (
         <p className="loading-indicator">Loading system data...</p>
       ) : (
-        <section className="grid">
-          {/* APIs Catalog Card */}
-          <article className="card">
-            <div className="card-header">
-              <div>
-                <h2>APIs</h2>
-                <span className="card-subtitle">Gateway Managed Endpoints</span>
+        <section className="workspace-split">
+          {/* Left Panel: API Gateway Catalog (Naturally Sized) */}
+          <div className="workspace-panel api-panel">
+            <div className="panel-header">
+              <div className="panel-title-group">
+                <h3>APIs</h3>
+                <span className="panel-count monospace">{apis.length}</span>
               </div>
-              <div className="card-header-actions">
-                <button
-                  className="register-api-btn"
-                  onClick={() => {
-                    setApiFormError(null)
-                    setIsRegisterApiOpen(true)
-                  }}
-                >
-                  + Register API
-                </button>
-                <span className="card-badge">Catalog ({apis.length})</span>
-              </div>
+              <button
+                className="btn-panel-action"
+                onClick={() => {
+                  setApiFormError(null)
+                  setIsRegisterApiOpen(true)
+                }}
+              >
+                + Register API
+              </button>
             </div>
-            <p className="metric">{apis.length}</p>
-            <div className="card-items-scroll">
+
+            <div className="panel-content-scroll">
               {apis.length === 0 ? (
                 <p className="empty-state">No API definitions registered.</p>
               ) : (
-                apis.map(api => (
-                  <div
-                    className="item clickable-item"
-                    key={api.id}
-                    onClick={() => setSelectedApi(api)}
-                    role="button"
-                    tabIndex={0}
-                    title="Click to view API details"
-                  >
-                    <div className="item-title-row">
-                      <strong>{api.name}</strong>
-                      <span className="status-tag status-completed">{api.status}</span>
-                    </div>
-                    <div className="item-meta-row">
-                      <span>{api.version} · {api.basePath}</span>
-                      <span className="click-hint">Details ↗</span>
-                    </div>
-                    <small className="monospace">{api.backendUrl}</small>
+                <div className="calm-table">
+                  <div className="calm-table-header api-columns">
+                    <span>NAME</span>
+                    <span>BASE PATH</span>
+                    <span>VERSION</span>
+                    <span style={{ textAlign: 'right' }}>STATUS</span>
                   </div>
-                ))
+                  {apis.map(api => (
+                    <div
+                      className={`calm-table-row api-columns clickable-row ${selectedApi?.id === api.id ? 'row-selected' : ''}`}
+                      key={api.id}
+                      onClick={() => setSelectedApi(api)}
+                      role="button"
+                      tabIndex={0}
+                      title="Inspect API gateway routing and upstream target"
+                    >
+                      <strong className="row-title">{api.name}</strong>
+                      <span className="monospace row-mono">{api.basePath}</span>
+                      <span className="row-version monospace">{api.version}</span>
+                      <span className="row-status-align">
+                        <span className="calm-dot dot-completed" />
+                        <span className="calm-status-text">{api.status}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          </article>
+          </div>
 
-          {/* Workflow Jobs Card */}
-          <article className="card">
-            <div className="card-header">
-              <div>
-                <h2>Workflow Jobs</h2>
-                <span className="card-subtitle">
-                  {showAllJobs ? `Showing all ${jobs.length} jobs` : `Showing recent ${displayedJobs.length} of ${jobs.length}`}
-                </span>
+          {/* Right Panel: Workflow Jobs (Carries Vertical Space) */}
+          <div className="workspace-panel jobs-panel">
+            <div className="panel-header">
+              <div className="panel-title-group">
+                <h3>Workflow Jobs</h3>
+                <span className="panel-count monospace">{jobs.length}</span>
               </div>
-              <div className="card-header-actions">
-                <span className="card-badge">Asynchronous</span>
-                {jobs.length > RECENT_JOBS_LIMIT && (
-                  <button
-                    className="view-all-btn"
-                    onClick={() => setShowAllJobs(!showAllJobs)}
-                  >
-                    {showAllJobs ? `Show Recent (${RECENT_JOBS_LIMIT})` : `View All (${jobs.length})`}
-                  </button>
-                )}
-              </div>
+              {jobs.length > RECENT_JOBS_LIMIT && (
+                <button
+                  className="btn-panel-toggle"
+                  onClick={() => setShowAllJobs(!showAllJobs)}
+                >
+                  {showAllJobs ? `Recent (${RECENT_JOBS_LIMIT})` : `View all (${jobs.length})`}
+                </button>
+              )}
             </div>
-            <p className="metric">{jobs.length}</p>
-            <div className="card-items-scroll">
+
+            <div className="panel-content-scroll">
               {jobs.length === 0 ? (
                 <p className="empty-state">
                   No workflow jobs found. Click &quot;Create Demo Job&quot; to dispatch a task.
                 </p>
               ) : (
-                displayedJobs.map(job => (
-                  <div
-                    className="item clickable-item"
-                    key={job.id}
-                    onClick={() => {
-                      setSelectedJob(job)
-                      setRetryFeedback(null)
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    title="Click to inspect job lifecycle and execution details"
-                  >
-                    <div className="item-title-row">
-                      <strong>{job.type}</strong>
-                      <span className={getStatusClass(job.status)}>{job.status}</span>
-                    </div>
-                    <div className="item-meta-row">
-                      <small className="monospace">{job.id}</small>
-                      <span className="click-hint">Inspect ↗</span>
-                    </div>
-                    {job.result && <span className="job-result">{job.result}</span>}
+                <div className="calm-table">
+                  <div className="calm-table-header job-columns">
+                    <span>TYPE</span>
+                    <span>JOB ID</span>
+                    <span>ATTEMPTS</span>
+                    <span>TIME</span>
+                    <span style={{ textAlign: 'right' }}>STATUS</span>
                   </div>
-                ))
+                  {displayedJobs.map(job => (
+                    <div
+                      className={`calm-table-row job-columns clickable-row ${selectedJob?.id === job.id ? 'row-selected' : ''}`}
+                      key={job.id}
+                      onClick={() => {
+                        setSelectedJob(job)
+                        setRetryFeedback(null)
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      title="Inspect workflow execution details, payload, and retry state"
+                    >
+                      <span className="monospace row-type">{job.type}</span>
+                      <span className="monospace row-mono id-dimmed">{job.id.substring(0, 8)}...{job.id.substring(job.id.length - 4)}</span>
+                      <span className="monospace row-attempts">
+                        {job.attemptCount ?? 0}
+                        {job.status === 'FAILED' && <span className="dlq-tag">DLQ</span>}
+                      </span>
+                      <span className="monospace row-time">
+                        {job.createdAt ? (formatTimestamp(job.createdAt).split(' ')[1] || '—') : '—'}
+                      </span>
+                      <span className="row-status-align">
+                        <span className={`calm-dot dot-${job.status.toLowerCase()}`} />
+                        <span className="calm-status-text">{job.status}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          </article>
+          </div>
         </section>
       )}
 
       {/* --- MODAL 1: WORKFLOW JOB DETAILS PANEL --- */}
       {selectedJob && (
         <div className="modal-backdrop" onClick={() => { setSelectedJob(null); setRetryFeedback(null); }}>
-          <div className="modal-dialog" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+          <div className="modal-dialog inspector-dialog" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div className="modal-header">
-              <div>
-                <h2>Workflow Job Details</h2>
-                <span className="modal-subtitle">Asynchronous execution lifecycle</span>
+              <div className="inspector-title-row">
+                <span className="inspector-eyebrow">JOB / {selectedJob.type}</span>
+                <div className="inspector-headline">
+                  <span className={`calm-dot dot-${selectedJob.status.toLowerCase()}`} />
+                  <span className={`inspector-status ${getStatusClass(selectedJob.status)}`}>{selectedJob.status}</span>
+                  <span className="inspector-attempts monospace">
+                    {selectedJob.attemptCount ?? 0} {selectedJob.attemptCount === 1 ? 'attempt' : 'attempts'}
+                  </span>
+                </div>
+                <code className="monospace inspector-uuid selectable">{selectedJob.id}</code>
               </div>
               <button
                 className="modal-close-btn"
@@ -722,8 +711,8 @@ function App() {
               {/* DLQ Alert if Failed */}
               {selectedJob.status.toUpperCase() === 'FAILED' && (
                 <div className="dlq-banner">
-                  <div className="dlq-title">⚠️ Dead-Letter Queue (DLQ)</div>
-                  <p>This job exceeded maximum retry attempts ({selectedJob.attemptCount ?? 0}) and was routed to the FlowForge dead-letter queue. You can retry it below.</p>
+                  <div className="dlq-title">DEAD-LETTER QUEUE (DLQ)</div>
+                  <p>Exceeded maximum retry attempts ({selectedJob.attemptCount ?? 0}). Dispatched to DLQ routing exchange.</p>
                 </div>
               )}
 
@@ -734,54 +723,40 @@ function App() {
                 </div>
               )}
 
-              {/* Key Details Grid */}
-              <div className="detail-grid">
-                <div className="detail-cell">
-                  <span className="cell-label">Job ID</span>
-                  <code className="monospace selectable">{selectedJob.id}</code>
+              {/* Compact Metadata Area */}
+              <div className="metadata-strip">
+                <div className="metadata-item">
+                  <span className="meta-label">CREATED</span>
+                  <span className="meta-val monospace">{formatTimestamp(selectedJob.createdAt)}</span>
                 </div>
-                <div className="detail-cell">
-                  <span className="cell-label">Workflow Type</span>
-                  <strong>{selectedJob.type}</strong>
-                </div>
-                <div className="detail-cell">
-                  <span className="cell-label">Current Status</span>
-                  <span className={getStatusClass(selectedJob.status)}>{selectedJob.status}</span>
-                </div>
-                <div className="detail-cell">
-                  <span className="cell-label">Attempt Count</span>
-                  <strong>{selectedJob.attemptCount ?? 0}</strong>
-                </div>
-                <div className="detail-cell">
-                  <span className="cell-label">Created Time</span>
-                  <span>{formatTimestamp(selectedJob.createdAt)}</span>
-                </div>
-                <div className="detail-cell">
-                  <span className="cell-label">Last Updated</span>
-                  <span>{formatTimestamp(selectedJob.updatedAt)}</span>
+                <div className="metadata-item">
+                  <span className="meta-label">UPDATED</span>
+                  <span className="meta-val monospace">{formatTimestamp(selectedJob.updatedAt)}</span>
                 </div>
                 {selectedJob.idempotencyKey && (
-                  <div className="detail-cell full-width">
-                    <span className="cell-label">Idempotency Key</span>
-                    <code className="monospace">{selectedJob.idempotencyKey}</code>
+                  <div className="metadata-item">
+                    <span className="meta-label">IDEMPOTENCY KEY</span>
+                    <span className="meta-val monospace selectable">{selectedJob.idempotencyKey}</span>
                   </div>
                 )}
               </div>
 
               {/* Request Payload */}
               <div className="detail-section">
-                <span className="detail-heading">Request Payload</span>
-                <pre className="code-block">{formatJsonPayload(selectedJob.requestPayload)}</pre>
+                <span className="detail-heading">REQUEST PAYLOAD</span>
+                <pre className="code-block selectable">
+                  {formatJsonPayload(selectedJob.requestPayload)}
+                </pre>
               </div>
 
-              {/* Result / Output */}
+              {/* Execution Output */}
               {selectedJob.result && (
                 <div className="detail-section">
                   <span className="detail-heading">
-                    {selectedJob.status.toUpperCase() === 'FAILED' ? 'Failure Reason / Message' : 'Execution Output'}
+                    {selectedJob.status.toUpperCase() === 'FAILED' ? 'FAILURE REASON' : 'EXECUTION OUTPUT'}
                   </span>
-                  <pre className={selectedJob.status.toUpperCase() === 'FAILED' ? 'code-block error-block' : 'code-block success-block'}>
-                    {formatJsonPayload(selectedJob.result)}
+                  <pre className={selectedJob.status.toUpperCase() === 'FAILED' ? 'code-block error-block selectable' : 'code-block success-block selectable'}>
+                    {selectedJob.result}
                   </pre>
                 </div>
               )}
@@ -790,7 +765,7 @@ function App() {
             <div className="modal-footer">
               {selectedJob.status.toUpperCase() === 'FAILED' && (
                 <button
-                  className="primary-btn retry-btn"
+                  className="retry-btn"
                   onClick={() => handleRetryJob(selectedJob.id)}
                   disabled={retryLoading}
                 >
@@ -813,9 +788,9 @@ function App() {
         <div className="modal-backdrop" onClick={() => setSelectedApi(null)}>
           <div className="modal-dialog" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div className="modal-header">
-              <div>
-                <h2>API Definition Details</h2>
-                <span className="modal-subtitle">Gateway routing configuration</span>
+              <div className="modal-title-lockup">
+                <span className="modal-eyebrow">GATEWAY</span>
+                <h2>API Details</h2>
               </div>
               <button
                 className="modal-close-btn"
@@ -887,9 +862,9 @@ function App() {
         <div className="modal-backdrop" onClick={() => setIsRegisterApiOpen(false)}>
           <div className="modal-dialog" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <div className="modal-header">
-              <div>
-                <h2>Register New API</h2>
-                <span className="modal-subtitle">Publish an upstream service to the API Gateway</span>
+              <div className="modal-title-lockup">
+                <span className="modal-eyebrow">REGISTRATION</span>
+                <h2>Register API</h2>
               </div>
               <button
                 className="modal-close-btn"
