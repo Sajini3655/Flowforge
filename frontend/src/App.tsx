@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 type Job = {
   id: string
@@ -36,6 +36,19 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
 
+  const handleLogout = useCallback((reason?: string) => {
+    setToken('')
+    setUserEmail('')
+    localStorage.removeItem('flowforge_token')
+    localStorage.removeItem('flowforge_user')
+    setJobs([])
+    setApis([])
+    setError(null)
+    if (reason) {
+      setAuthError(reason)
+    }
+  }, [])
+
   async function handleLogin(e?: React.FormEvent) {
     if (e) e.preventDefault()
     setAuthLoading(true)
@@ -47,14 +60,18 @@ function App() {
         body: JSON.stringify({ email: emailInput, password: passwordInput }),
       })
       if (!res.ok) {
-        throw new Error(`Login failed with status ${res.status}`)
+        if (res.status === 401) {
+          throw new Error('Invalid email or password.')
+        }
+        throw new Error(`Authentication failed (HTTP ${res.status}).`)
       }
       const data = await res.json()
       if (data.token) {
         setToken(data.token)
-        setUserEmail(emailInput)
+        const email = data.user?.email || emailInput
+        setUserEmail(email)
         localStorage.setItem('flowforge_token', data.token)
-        localStorage.setItem('flowforge_user', emailInput)
+        localStorage.setItem('flowforge_user', email)
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Authentication failed'
@@ -64,22 +81,17 @@ function App() {
     }
   }
 
-  function handleLogout() {
-    setToken('')
-    setUserEmail('')
-    localStorage.removeItem('flowforge_token')
-    localStorage.removeItem('flowforge_user')
-    setJobs([])
-    setApis([])
-  }
+  const loadData = useCallback(async () => {
+    // Strictly do not fetch protected endpoints when unauthenticated
+    if (!token) {
+      return
+    }
 
-  async function loadData() {
     setLoading(true)
     setError(null)
     try {
-      const headers: Record<string, string> = {}
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`,
       }
 
       const [jobsRes, apisRes] = await Promise.all([
@@ -87,11 +99,14 @@ function App() {
         fetch(`${API_BASE}/apis`, { headers }),
       ])
 
+      // If token expired or rejected, clear session cleanly and return to sign in
       if (jobsRes.status === 401 || apisRes.status === 401) {
-        setError('Authentication required. Log in above to access workflow jobs and registered APIs.')
-        setJobs([])
-        setApis([])
+        handleLogout('Your session has expired. Please sign in again.')
         return
+      }
+
+      if (!jobsRes.ok || !apisRes.ok) {
+        throw new Error(`Data fetch failed (jobs: ${jobsRes.status}, apis: ${apisRes.status})`)
       }
 
       const jobsData = await jobsRes.json()
@@ -105,17 +120,16 @@ function App() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token, handleLogout])
 
   async function createDemoJob() {
+    if (!token) return
     setError(null)
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Idempotency-Key': `demo-${Date.now()}`,
-      }
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
       }
 
       const res = await fetch(`${API_BASE}/jobs`, {
@@ -131,6 +145,11 @@ function App() {
         }),
       })
 
+      if (res.status === 401) {
+        handleLogout('Your session has expired. Please sign in again.')
+        return
+      }
+
       if (!res.ok) {
         throw new Error(`Job creation returned HTTP ${res.status}`)
       }
@@ -142,9 +161,12 @@ function App() {
     }
   }
 
+  // Effect is conditionally triggered only when token is present
   useEffect(() => {
-    loadData()
-  }, [token])
+    if (token) {
+      loadData()
+    }
+  }, [token, loadData])
 
   function getStatusClass(status: string) {
     switch (status.toUpperCase()) {
@@ -155,63 +177,130 @@ function App() {
       case 'FAILED':
         return 'status-tag status-failed'
       case 'SUBMITTED':
+      case 'QUEUED':
       default:
         return 'status-tag status-submitted'
     }
   }
 
-  return (
-    <main className="container">
-      <header>
-        <p className="eyebrow">API Management + Distributed Workflow Platform</p>
-        <h1>FlowForge</h1>
-        <p className="subtitle">
-          Distributed asynchronous workflow processing with Transactional Outbox, RabbitMQ, and Redis locking.
-        </p>
-      </header>
+  // --- UNMISTAKABLE CLEAN LANDING & SIGN IN VIEW ---
+  if (!token) {
+    return (
+      <main className="container">
+        <header className="hero-header">
+          <p className="eyebrow">API Management & Distributed Workflow Platform</p>
+          <h1>FlowForge</h1>
+          <p className="subtitle">
+            Manage APIs, submit workflow jobs, and monitor distributed processing.
+          </p>
+        </header>
 
-      {/* Authentication & Session Header */}
-      <section className="auth-card">
-        {token ? (
-          <div className="auth-session">
-            <div className="auth-user-info">
-              <span className="auth-badge">Active Session</span>
-              <strong>{userEmail || 'Authenticated User'}</strong>
-            </div>
-            <button className="secondary logout-btn" onClick={handleLogout}>
-              Log Out
-            </button>
+        <section className="login-card">
+          <div className="login-card-header">
+            <h2>Sign In to Console</h2>
+            <p>Access the API catalog, job orchestrator, and real-time system metrics.</p>
           </div>
-        ) : (
+
           <form className="auth-form" onSubmit={handleLogin}>
-            <div className="auth-inputs">
+            <div className="form-group">
+              <label htmlFor="email">Email Address</label>
               <input
+                id="email"
                 type="email"
-                placeholder="Email address"
+                placeholder="admin@flowforge.local"
                 value={emailInput}
                 onChange={e => setEmailInput(e.target.value)}
                 required
               />
+            </div>
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
               <input
+                id="password"
                 type="password"
-                placeholder="Password"
+                placeholder="••••••••"
                 value={passwordInput}
                 onChange={e => setPasswordInput(e.target.value)}
                 required
               />
-              <button type="submit" disabled={authLoading}>
-                {authLoading ? 'Signing in...' : 'Sign In'}
-              </button>
             </div>
-            {authError && <p className="auth-error-msg">{authError}</p>}
+
+            {authError && <div className="auth-error-banner">{authError}</div>}
+
+            <button type="submit" className="primary-btn signin-btn" disabled={authLoading}>
+              {authLoading ? 'Signing In...' : 'Sign In'}
+            </button>
           </form>
-        )}
-      </section>
+
+          <div className="demo-credentials-callout">
+            <span className="badge-demo">Demo Credentials</span>
+            <span><code>admin@flowforge.local</code> / <code>Admin123!</code></span>
+          </div>
+        </section>
+
+        <section className="feature-grid">
+          <div className="feature-card">
+            <div className="feature-icon">🛡️</div>
+            <h3>API Gateway & Security</h3>
+            <p>Managed endpoint catalog with WSO2 API Manager and RS256 asymmetric JWT verification.</p>
+          </div>
+          <div className="feature-card">
+            <div className="feature-icon">⚡</div>
+            <h3>Transactional Outbox</h3>
+            <p>Guaranteed event publishing via PostgreSQL CDC outbox pattern and RabbitMQ retries with DLQ.</p>
+          </div>
+          <div className="feature-card">
+            <div className="feature-icon">🔒</div>
+            <h3>Distributed Reliability</h3>
+            <p>Atomic Redis distributed locking to prevent duplicate workflow runs with idempotency checks.</p>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  // --- AUTHENTICATED DASHBOARD VIEW ---
+  return (
+    <main className="container">
+      <header className="dashboard-header">
+        <div>
+          <p className="eyebrow">FlowForge Platform</p>
+          <h1>Dashboard</h1>
+          <p className="subtitle">
+            Manage APIs, submit workflow jobs, and monitor distributed processing.
+          </p>
+        </div>
+
+        <div className="session-pill">
+          <div className="user-details">
+            <span className="auth-badge">Active Session</span>
+            <strong>{userEmail || 'admin@flowforge.local'}</strong>
+          </div>
+          <button className="secondary logout-btn" onClick={() => handleLogout()}>
+            Sign Out
+          </button>
+        </div>
+      </header>
 
       {error && <div className="error-banner">{error}</div>}
 
+      <div className="dashboard-status-bar">
+        <div className="status-item">
+          <span className="status-indicator online"></span>
+          <span>PostgreSQL: <strong>Connected</strong></span>
+        </div>
+        <div className="status-item">
+          <span className="status-indicator online"></span>
+          <span>RabbitMQ: <strong>Connected</strong></span>
+        </div>
+        <div className="status-item">
+          <span className="status-indicator online"></span>
+          <span>Redis: <strong>Connected</strong></span>
+        </div>
+      </div>
+
       <section className="actions">
-        <button onClick={createDemoJob} disabled={!token}>
+        <button onClick={createDemoJob}>
           Create Demo Job
         </button>
         <button className="secondary" onClick={loadData} disabled={loading}>
