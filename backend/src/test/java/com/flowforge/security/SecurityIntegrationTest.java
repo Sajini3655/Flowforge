@@ -182,4 +182,59 @@ class SecurityIntegrationTest {
         mockMvc.perform(get("/api/jobs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void jwksEndpointIsPublicAndExposesKeys() throws Exception {
+        mockMvc.perform(get("/api/.well-known/jwks.json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.keys").isArray())
+                .andExpect(jsonPath("$.keys[0].kty").value("RSA"))
+                .andExpect(jsonPath("$.keys[0].alg").value("RS256"))
+                .andExpect(jsonPath("$.keys[0].d").doesNotExist());
+    }
+
+    @Test
+    void malformedTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/jobs").header("Authorization", "Bearer not.a.valid.jwt"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void invalidSignatureReturnsUnauthorized() throws Exception {
+        java.security.KeyPairGenerator gen = java.security.KeyPairGenerator.getInstance("RSA");
+        gen.initialize(2048);
+        java.security.KeyPair other = gen.generateKeyPair();
+        String fakeToken = io.jsonwebtoken.Jwts.builder()
+                .header().keyId("flowforge-dev-1").and()
+                .subject("user@example.com")
+                .issuer("https://auth.flowforge.local")
+                .audience().add("flowforge-api").and()
+                .expiration(new java.util.Date(System.currentTimeMillis() + 60000))
+                .claim("role", "USER")
+                .signWith(other.getPrivate(), io.jsonwebtoken.Jwts.SIG.RS256)
+                .compact();
+
+        mockMvc.perform(get("/api/jobs").header("Authorization", "Bearer " + fakeToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void userRoleForbiddenFromPostApi() throws Exception {
+        mockMvc.perform(post("/api/apis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Test\",\"version\":\"v1\",\"basePath\":\"/test\",\"backendUrl\":\"http://backend:8080\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminRoleAllowedToPostApi() throws Exception {
+        when(apiDefinitionService.create(any())).thenReturn(new com.flowforge.api.ApiDefinition());
+
+        mockMvc.perform(post("/api/apis")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Test\",\"version\":\"v1\",\"basePath\":\"/test\",\"backendUrl\":\"http://backend:8080\"}"))
+                .andExpect(status().isCreated());
+    }
 }

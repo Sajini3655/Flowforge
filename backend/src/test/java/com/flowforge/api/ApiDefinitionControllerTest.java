@@ -134,4 +134,20 @@ class ApiDefinitionControllerTest {
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("API not found: 99"));
       }
+
+    @Test
+    void deprecateReturnsUpdatedApi() throws Exception {
+        ApiDefinition api = new ApiDefinition();
+        api.setId(7L);
+        api.setName("Report API");
+        api.setStatus(ApiStatus.DEPRECATED);
+        when(service.deprecate(7L)).thenReturn(api);
+
+        mockMvc.perform(post("/api/apis/7/deprecate"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(7))
+                .andExpect(jsonPath("$.status").value("DEPRECATED"));
+
+        verify(service).deprecate(7L);
+    }
 }

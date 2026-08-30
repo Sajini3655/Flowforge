@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -129,5 +130,51 @@ class ApiDefinitionServiceTest {
 
         assertThatThrownBy(() -> service.findById(1L))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void createRejectsDuplicateName() {
+        authenticatedUser("admin@example.com", UserRole.ADMIN);
+        when(repository.existsByNameIgnoreCase("Existing API")).thenReturn(true);
+
+        ApiDefinitionRequest req = new ApiDefinitionRequest("Existing API", "desc", "v1", "/existing", "http://backend:8080");
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("already exists");
+    }
+
+    @Test
+    void createRejectsDuplicateBasePath() {
+        authenticatedUser("admin@example.com", UserRole.ADMIN);
+        when(repository.existsByNameIgnoreCase("New API")).thenReturn(false);
+        when(repository.existsByBasePath("/duplicate")).thenReturn(true);
+
+        ApiDefinitionRequest req = new ApiDefinitionRequest("New API", "desc", "v1", "/duplicate", "http://backend:8080");
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("base path '/duplicate' already exists");
+    }
+
+    @Test
+    void createRejectsInvalidBackendUrl() {
+        authenticatedUser("admin@example.com", UserRole.ADMIN);
+
+        ApiDefinitionRequest req = new ApiDefinitionRequest("API", "desc", "v1", "/api", "ftp://invalid-url");
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Backend URL must start with http:// or https://");
+    }
+
+    @Test
+    void deprecateApiTransitionsStatusToDeprecated() {
+        authenticatedUser("admin@example.com", UserRole.ADMIN);
+        ApiDefinition api = new ApiDefinition();
+        api.setId(10L);
+        api.setStatus(ApiStatus.PUBLISHED);
+        when(repository.findById(10L)).thenReturn(java.util.Optional.of(api));
+        when(repository.save(any(ApiDefinition.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ApiDefinition deprecated = service.deprecate(10L);
+        assertThat(deprecated.getStatus()).isEqualTo(ApiStatus.DEPRECATED);
     }
 }

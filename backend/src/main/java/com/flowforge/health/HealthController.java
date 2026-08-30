@@ -1,5 +1,6 @@
 package com.flowforge.health;
 
+import com.flowforge.api.Wso2GatewayService;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
@@ -19,13 +20,23 @@ public class HealthController {
     private final DataSource dataSource;
     private final ConnectionFactory rabbitConnectionFactory;
     private final StringRedisTemplate redisTemplate;
+    private final Wso2GatewayService wso2GatewayService;
 
     public HealthController(ObjectProvider<DataSource> dataSource,
                             ObjectProvider<ConnectionFactory> rabbitConnectionFactory,
                             ObjectProvider<StringRedisTemplate> redisTemplate) {
-        this.dataSource = dataSource.getIfAvailable();
-        this.rabbitConnectionFactory = rabbitConnectionFactory.getIfAvailable();
-        this.redisTemplate = redisTemplate.getIfAvailable();
+        this(dataSource, rabbitConnectionFactory, redisTemplate, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public HealthController(ObjectProvider<DataSource> dataSource,
+                            ObjectProvider<ConnectionFactory> rabbitConnectionFactory,
+                            ObjectProvider<StringRedisTemplate> redisTemplate,
+                            ObjectProvider<Wso2GatewayService> wso2GatewayService) {
+        this.dataSource = dataSource != null ? dataSource.getIfAvailable() : null;
+        this.rabbitConnectionFactory = rabbitConnectionFactory != null ? rabbitConnectionFactory.getIfAvailable() : null;
+        this.redisTemplate = redisTemplate != null ? redisTemplate.getIfAvailable() : null;
+        this.wso2GatewayService = wso2GatewayService != null ? wso2GatewayService.getIfAvailable() : null;
     }
 
     @GetMapping("/api/health")
@@ -49,6 +60,9 @@ public class HealthController {
         dependencies.put("postgresql", probePostgres());
         dependencies.put("rabbitmq", probeRabbitMq());
         dependencies.put("redis", probeRedis());
+        if (wso2GatewayService != null) {
+            dependencies.put("wso2", probeWso2());
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", areDependenciesUp(dependencies) ? "UP" : "DOWN");
         body.put("service", "flowforge-backend");
@@ -84,11 +98,23 @@ public class HealthController {
         }
     }
 
+    private String probeWso2() {
+        if (wso2GatewayService == null) return "DOWN";
+        try {
+            return wso2GatewayService.isAvailable() ? "UP" : "DOWN";
+        } catch (Exception ignored) {
+            return "DOWN";
+        }
+    }
+
     private boolean isUp(Map<String, Object> body) {
         return "UP".equals(body.get("status"));
     }
 
     private boolean areDependenciesUp(Map<String, Object> dependencies) {
-        return dependencies.values().stream().allMatch("UP"::equals);
+        // PostgreSQL, RabbitMQ, and Redis are the core workflow execution engine dependencies
+        return "UP".equals(dependencies.get("postgresql"))
+                && "UP".equals(dependencies.get("rabbitmq"))
+                && "UP".equals(dependencies.get("redis"));
     }
 }

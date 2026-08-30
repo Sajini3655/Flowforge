@@ -20,6 +20,8 @@ type ApiDefinition = {
   basePath: string
   backendUrl: string
   status: string
+  wso2ApiId?: string | null
+  gatewayUrl?: string | null
   createdAt?: string
 }
 
@@ -74,6 +76,44 @@ function App() {
 
   // Demo Job State
   const [demoSubmitting, setDemoSubmitting] = useState(false)
+
+  // Infrastructure Readiness State (live GET /api/health/ready)
+  const [dependencies, setDependencies] = useState<{
+    postgresql: 'UP' | 'DOWN'
+    rabbitmq: 'UP' | 'DOWN'
+    redis: 'UP' | 'DOWN'
+    wso2: 'UP' | 'DOWN'
+  }>({
+    postgresql: 'UP',
+    rabbitmq: 'UP',
+    redis: 'UP',
+    wso2: 'UP',
+  })
+
+  const checkHealth = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/health/ready`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.dependencies) {
+          setDependencies({
+            postgresql: data.dependencies.postgresql === 'UP' ? 'UP' : 'DOWN',
+            rabbitmq: data.dependencies.rabbitmq === 'UP' ? 'UP' : 'DOWN',
+            redis: data.dependencies.redis === 'UP' ? 'UP' : 'DOWN',
+            wso2: data.dependencies.wso2 === 'UP' ? 'UP' : 'DOWN',
+          })
+        }
+      }
+    } catch {
+      // retain state or set down on network failure
+    }
+  }, [])
+
+  useEffect(() => {
+    checkHealth()
+    const interval = setInterval(checkHealth, 8000)
+    return () => clearInterval(interval)
+  }, [checkHealth])
 
   // Authentication State
   const [token, setToken] = useState<string>(() => localStorage.getItem('flowforge_token') || '')
@@ -365,6 +405,32 @@ function App() {
     }
   }
 
+  // Deprecate API via real backend endpoint: POST /api/apis/{id}/deprecate
+  async function handleDeprecateApi(apiId: number) {
+    if (!token) return
+    try {
+      const res = await fetch(`${API_BASE}/apis/${apiId}/deprecate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (res.status === 401) {
+        handleLogout('Your session has expired. Please sign in again.')
+        return
+      }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || `Deprecation failed with HTTP ${res.status}`)
+      }
+      const updated: ApiDefinition = await res.json()
+      setSelectedApi(updated)
+      setApis(prev => prev.map(a => (a.id === apiId ? updated : a)))
+    } catch (err: unknown) {
+      console.error('Failed to deprecate API', err)
+    }
+  }
+
   // Load initial data conditionally upon token presence
   useEffect(() => {
     if (token) {
@@ -486,20 +552,34 @@ function App() {
         </div>
 
         <div className="header-right">
-          <div className="infra-live-strip">
+          <div className="infra-live-strip" title="Live readiness checks via GET /api/health/ready">
             <div className="infra-live-node">
-              <span className="live-dot online" />
+              <span className={`live-dot ${dependencies.postgresql === 'UP' ? 'online' : 'offline'}`} />
               <span className="live-name">PostgreSQL</span>
             </div>
             <div className="infra-live-node">
-              <span className="live-dot online" />
+              <span className={`live-dot ${dependencies.rabbitmq === 'UP' ? 'online' : 'offline'}`} />
               <span className="live-name">RabbitMQ</span>
             </div>
             <div className="infra-live-node">
-              <span className="live-dot online" />
+              <span className={`live-dot ${dependencies.redis === 'UP' ? 'online' : 'offline'}`} />
               <span className="live-name">Redis</span>
             </div>
+            <div className="infra-live-node">
+              <span className={`live-dot ${dependencies.wso2 === 'UP' ? 'online' : 'offline'}`} />
+              <span className="live-name">WSO2</span>
+            </div>
           </div>
+          <span className="header-meta-divider" />
+          <a
+            href="http://localhost:8080/actuator/prometheus"
+            target="_blank"
+            rel="noreferrer"
+            className="header-meta-link monospace"
+            title="Real-time Micrometer Prometheus metrics scrape endpoint"
+          >
+            Prometheus ↗
+          </a>
           <span className="header-meta-divider" />
           <span className="session-user monospace">{userEmail || 'admin@flowforge.local'}</span>
           <button className="btn-text-signout" onClick={() => handleLogout()} title="Sign out">
@@ -541,6 +621,7 @@ function App() {
             className="btn-forge-primary"
             onClick={() => createDemoJob('ECHO')}
             disabled={demoSubmitting}
+            title="Dispatch standard workflow job that completes successfully"
           >
             {demoSubmitting ? 'Dispatching...' : 'Create Demo Job'}
           </button>
@@ -548,6 +629,7 @@ function App() {
             className="btn-forge-secondary"
             onClick={() => createDemoJob('TRANSIENT_FAILURE')}
             disabled={demoSubmitting}
+            title="Simulate transient failures that exhaust retries and route to DLQ"
           >
             Simulate DLQ Failure
           </button>
@@ -556,6 +638,7 @@ function App() {
           className="btn-forge-refresh"
           onClick={() => loadData(true)}
           disabled={loading}
+          title="Refresh dashboard data"
         >
           {loading ? 'Refreshing...' : '↻ Refresh'}
         </button>
@@ -564,223 +647,381 @@ function App() {
       {loading && jobs.length === 0 ? (
         <p className="loading-indicator">Loading system data...</p>
       ) : (
-        <section className="workspace-split">
-          {/* Left Panel: API Gateway Catalog (Naturally Sized) */}
-          <div className="workspace-panel api-panel">
-            <div className="panel-header">
-              <div className="panel-title-group">
-                <h3>APIs</h3>
-                <span className="panel-count monospace">{apis.length}</span>
-              </div>
-              <button
-                className="btn-panel-action"
-                onClick={() => {
-                  setApiFormError(null)
-                  setIsRegisterApiOpen(true)
-                }}
-              >
-                + Register API
-              </button>
-            </div>
-
-            <div className="panel-content-scroll">
-              {apis.length === 0 ? (
-                <p className="empty-state">No API definitions registered.</p>
-              ) : (
-                <div className="calm-table">
-                  <div className="calm-table-header api-columns">
-                    <span>NAME</span>
-                    <span>BASE PATH</span>
-                    <span>VERSION</span>
-                    <span style={{ textAlign: 'right' }}>STATUS</span>
-                  </div>
-                  {apis.map(api => (
-                    <div
-                      className={`calm-table-row api-columns clickable-row ${selectedApi?.id === api.id ? 'row-selected' : ''}`}
-                      key={api.id}
-                      onClick={() => setSelectedApi(api)}
-                      role="button"
-                      tabIndex={0}
-                      title="Inspect API gateway routing and upstream target"
-                    >
-                      <strong className="row-title">{api.name}</strong>
-                      <span className="monospace row-mono">{api.basePath}</span>
-                      <span className="row-version monospace">{api.version}</span>
-                      <span className="row-status-align">
-                        <span className="calm-dot dot-completed" />
-                        <span className="calm-status-text">{api.status}</span>
-                      </span>
-                    </div>
-                  ))}
+        <>
+          <section className="workspace-split">
+            {/* Left Panel: API Gateway Catalog (Naturally Sized) */}
+            <div className="workspace-panel api-panel">
+              <div className="panel-header">
+                <div className="panel-title-group">
+                  <h3>APIs</h3>
+                  <span className="panel-count monospace">{apis.length}</span>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Panel: Workflow Jobs (Carries Vertical Space) */}
-          <div className="workspace-panel jobs-panel">
-            <div className="panel-header">
-              <div className="panel-title-group">
-                <h3>Workflow Jobs</h3>
-                <span className="panel-count monospace">{jobs.length}</span>
-              </div>
-              {jobs.length > RECENT_JOBS_LIMIT && (
                 <button
-                  className="btn-panel-toggle"
-                  onClick={() => setShowAllJobs(!showAllJobs)}
+                  className="btn-panel-action"
+                  onClick={() => {
+                    setApiFormError(null)
+                    setIsRegisterApiOpen(true)
+                  }}
                 >
-                  {showAllJobs ? `Recent (${RECENT_JOBS_LIMIT})` : `View all (${jobs.length})`}
+                  + Register API
                 </button>
-              )}
-            </div>
-
-            <div className="panel-content-scroll">
-              {jobs.length === 0 ? (
-                <p className="empty-state">
-                  No workflow jobs found. Click &quot;Create Demo Job&quot; to dispatch a task.
-                </p>
-              ) : (
-                <div className="calm-table">
-                  <div className="calm-table-header job-columns">
-                    <span>TYPE</span>
-                    <span>JOB ID</span>
-                    <span>ATTEMPTS</span>
-                    <span>TIME</span>
-                    <span style={{ textAlign: 'right' }}>STATUS</span>
-                  </div>
-                  {displayedJobs.map(job => (
-                    <div
-                      className={`calm-table-row job-columns clickable-row ${selectedJob?.id === job.id ? 'row-selected' : ''}`}
-                      key={job.id}
-                      onClick={() => {
-                        setSelectedJob(job)
-                        setRetryFeedback(null)
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      title="Inspect workflow execution details, payload, and retry state"
-                    >
-                      <span className="monospace row-type">{job.type}</span>
-                      <span className="monospace row-mono id-dimmed">{job.id.substring(0, 8)}...{job.id.substring(job.id.length - 4)}</span>
-                      <span className="monospace row-attempts">
-                        {job.attemptCount ?? 0}
-                        {job.status === 'FAILED' && <span className="dlq-tag">DLQ</span>}
-                      </span>
-                      <span className="monospace row-time">
-                        {job.createdAt ? (formatTimestamp(job.createdAt).split(' ')[1] || '—') : '—'}
-                      </span>
-                      <span className="row-status-align">
-                        <span className={`calm-dot dot-${job.status.toLowerCase()}`} />
-                        <span className="calm-status-text">{job.status}</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* --- MODAL 1: WORKFLOW JOB DETAILS PANEL --- */}
-      {selectedJob && (
-        <div className="modal-backdrop" onClick={() => { setSelectedJob(null); setRetryFeedback(null); }}>
-          <div className="modal-dialog inspector-dialog" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-            <div className="modal-header">
-              <div className="inspector-title-row">
-                <span className="inspector-eyebrow">JOB / {selectedJob.type}</span>
-                <div className="inspector-headline">
-                  <span className={`calm-dot dot-${selectedJob.status.toLowerCase()}`} />
-                  <span className={`inspector-status ${getStatusClass(selectedJob.status)}`}>{selectedJob.status}</span>
-                  <span className="inspector-attempts monospace">
-                    {selectedJob.attemptCount ?? 0} {selectedJob.attemptCount === 1 ? 'attempt' : 'attempts'}
-                  </span>
-                </div>
-                <code className="monospace inspector-uuid selectable">{selectedJob.id}</code>
               </div>
-              <button
-                className="modal-close-btn"
-                onClick={() => { setSelectedJob(null); setRetryFeedback(null); }}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
 
-            <div className="modal-body">
-              {/* DLQ Alert if Failed */}
-              {selectedJob.status.toUpperCase() === 'FAILED' && (
-                <div className="dlq-banner">
-                  <div className="dlq-title">DEAD-LETTER QUEUE (DLQ)</div>
-                  <p>Exceeded maximum retry attempts ({selectedJob.attemptCount ?? 0}). Dispatched to DLQ routing exchange.</p>
-                </div>
-              )}
-
-              {/* Retry Feedback Banner */}
-              {retryFeedback && (
-                <div className={retryFeedback.success ? 'feedback-banner success' : 'feedback-banner error'}>
-                  {retryFeedback.message}
-                </div>
-              )}
-
-              {/* Compact Metadata Area */}
-              <div className="metadata-strip">
-                <div className="metadata-item">
-                  <span className="meta-label">CREATED</span>
-                  <span className="meta-val monospace">{formatTimestamp(selectedJob.createdAt)}</span>
-                </div>
-                <div className="metadata-item">
-                  <span className="meta-label">UPDATED</span>
-                  <span className="meta-val monospace">{formatTimestamp(selectedJob.updatedAt)}</span>
-                </div>
-                {selectedJob.idempotencyKey && (
-                  <div className="metadata-item">
-                    <span className="meta-label">IDEMPOTENCY KEY</span>
-                    <span className="meta-val monospace selectable">{selectedJob.idempotencyKey}</span>
+              <div className="panel-content-scroll">
+                {apis.length === 0 ? (
+                  <p className="empty-state">No API definitions registered.</p>
+                ) : (
+                  <div className="calm-table">
+                    <div className="calm-table-header api-columns">
+                      <span>NAME</span>
+                      <span>BASE PATH</span>
+                      <span>VERSION</span>
+                      <span style={{ textAlign: 'right' }}>STATUS</span>
+                    </div>
+                    {apis.map(api => (
+                      <div
+                        className={`calm-table-row api-columns clickable-row ${selectedApi?.id === api.id ? 'row-selected' : ''}`}
+                        key={api.id}
+                        onClick={() => setSelectedApi(api)}
+                        role="button"
+                        tabIndex={0}
+                        title="Inspect API catalog definition"
+                      >
+                        <strong className="row-title">{api.name}</strong>
+                        <span className="monospace row-mono">{api.basePath}</span>
+                        <span className="row-version monospace">{api.version}</span>
+                        <span className="row-status-align">
+                          <span className={`calm-dot ${api.status === 'PUBLISHED' ? 'dot-completed' : api.status === 'DEPRECATED' ? 'dot-failed' : 'dot-queued'}`} />
+                          <span className="calm-status-text">{api.status}</span>
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
 
-              {/* Request Payload */}
-              <div className="detail-section">
-                <span className="detail-heading">REQUEST PAYLOAD</span>
-                <pre className="code-block selectable">
-                  {formatJsonPayload(selectedJob.requestPayload)}
-                </pre>
+              <div className="panel-footer-note">
+                <span className="monospace">API Management · WSO2 Gateway active on port 8243</span>
+              </div>
+            </div>
+
+            {/* Right Panel: Workflow Jobs (Carries Vertical Space) */}
+            <div className="workspace-panel jobs-panel">
+              <div className="panel-header">
+                <div className="panel-title-group">
+                  <h3>Workflow Jobs</h3>
+                  <span className="panel-count monospace">{jobs.length}</span>
+                </div>
+                {jobs.length > RECENT_JOBS_LIMIT && (
+                  <button
+                    className="btn-panel-toggle"
+                    onClick={() => setShowAllJobs(!showAllJobs)}
+                  >
+                    {showAllJobs ? `Recent (${RECENT_JOBS_LIMIT})` : `View all (${jobs.length})`}
+                  </button>
+                )}
               </div>
 
-              {/* Execution Output */}
-              {selectedJob.result && (
-                <div className="detail-section">
-                  <span className="detail-heading">
-                    {selectedJob.status.toUpperCase() === 'FAILED' ? 'FAILURE REASON' : 'EXECUTION OUTPUT'}
+              <div className="panel-content-scroll">
+                {jobs.length === 0 ? (
+                  <p className="empty-state">
+                    No workflow jobs found. Click &quot;Create Demo Job&quot; to dispatch a task.
+                  </p>
+                ) : (
+                  <div className="calm-table">
+                    <div className="calm-table-header job-columns">
+                      <span>TYPE</span>
+                      <span>JOB ID</span>
+                      <span>ATTEMPTS</span>
+                      <span>TIME</span>
+                      <span style={{ textAlign: 'right' }}>STATUS</span>
+                    </div>
+                    {displayedJobs.map(job => (
+                      <div
+                        className={`calm-table-row job-columns clickable-row ${selectedJob?.id === job.id ? 'row-selected' : ''}`}
+                        key={job.id}
+                        onClick={() => {
+                          setSelectedJob(job)
+                          setRetryFeedback(null)
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        title="Select to inspect execution in the Execution Inspector below"
+                      >
+                        <span className="monospace row-type">{job.type}</span>
+                        <span className="monospace row-mono id-dimmed">{job.id.substring(0, 8)}...{job.id.substring(job.id.length - 4)}</span>
+                        <span className="monospace row-attempts">
+                          {job.status === 'FAILED' ? (
+                            <span className="dlq-attempts-badge">{job.attemptCount ?? 0}/3</span>
+                          ) : (
+                            <span>{job.attemptCount ?? 0}</span>
+                          )}
+                          {job.status === 'FAILED' && <span className="dlq-tag">DLQ</span>}
+                        </span>
+                        <span className="monospace row-time">
+                          {job.createdAt ? (formatTimestamp(job.createdAt).split(' ')[1] || '—') : '—'}
+                        </span>
+                        <span className="row-status-align">
+                          <span className={`calm-dot dot-${job.status.toLowerCase()}`} />
+                          <span className={`calm-status-text status-text-${job.status.toLowerCase()} monospace`}>{job.status}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Lower Section: Execution Inspector (Spanning Full Width) */}
+          <section className="execution-inspector-panel">
+            <div className="inspector-panel-header">
+              <div className="inspector-header-left">
+                <h3>Execution Inspector</h3>
+                {selectedJob && (
+                  <span className="inspector-selected-tag monospace">
+                    {selectedJob.id}
                   </span>
-                  <pre className={selectedJob.status.toUpperCase() === 'FAILED' ? 'code-block error-block selectable' : 'code-block success-block selectable'}>
-                    {selectedJob.result}
-                  </pre>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="inspector-pipeline-hint">
+                <span className="pipeline-label">Architecture:</span>
+                <span className="pipeline-flow monospace">PostgreSQL → Outbox → RabbitMQ → Worker → Redis Lock → PostgreSQL</span>
+              </div>
             </div>
 
-            <div className="modal-footer">
-              {selectedJob.status.toUpperCase() === 'FAILED' && (
-                <button
-                  className="retry-btn"
-                  onClick={() => handleRetryJob(selectedJob.id)}
-                  disabled={retryLoading}
-                >
-                  {retryLoading ? 'Retrying via Outbox...' : '↻ Retry Job'}
-                </button>
-              )}
-              <button
-                className="secondary"
-                onClick={() => { setSelectedJob(null); setRetryFeedback(null); }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+            {!selectedJob ? (
+              <div className="inspector-empty-state">
+                <p>Select a workflow job to inspect execution details.</p>
+              </div>
+            ) : (
+              <div className="inspector-content">
+                {/* Real Lifecycle Execution Pipeline */}
+                <div className="lifecycle-pipeline-strip">
+                  <div className="pipeline-strip-header">
+                    <span className="pipeline-strip-title">SYSTEM EXECUTION PATH</span>
+                    <span className="pipeline-strip-state monospace">State: {selectedJob.status}</span>
+                  </div>
+                  <div className="pipeline-nodes">
+                    <div className="pipeline-node done">
+                      <span className="node-indicator">✓</span>
+                      <span className="node-name monospace">POST</span>
+                    </div>
+                    <span className="pipeline-arrow">→</span>
+                    <div className="pipeline-node done">
+                      <span className="node-indicator">✓</span>
+                      <span className="node-name monospace">POSTGRES</span>
+                    </div>
+                    <span className="pipeline-arrow">→</span>
+                    <div className="pipeline-node done">
+                      <span className="node-indicator">✓</span>
+                      <span className="node-name monospace">OUTBOX</span>
+                    </div>
+                    <span className="pipeline-arrow">→</span>
+                    <div className="pipeline-node done">
+                      <span className="node-indicator">✓</span>
+                      <span className="node-name monospace">RABBITMQ</span>
+                    </div>
+                    <span className="pipeline-arrow">→</span>
+                    <div className={`pipeline-node ${
+                      selectedJob.status === 'COMPLETED' || selectedJob.status === 'FAILED' ? 'done' :
+                      selectedJob.status === 'PROCESSING' ? 'active' : 'pending'
+                    }`}>
+                      <span className="node-indicator">
+                        {selectedJob.status === 'COMPLETED' || selectedJob.status === 'FAILED' ? '✓' :
+                         selectedJob.status === 'PROCESSING' ? '●' : '○'}
+                      </span>
+                      <span className="node-name monospace">WORKER</span>
+                    </div>
+                    <span className="pipeline-arrow">→</span>
+                    <div className={`pipeline-node ${
+                      selectedJob.status === 'COMPLETED' || selectedJob.status === 'FAILED' ? 'done' :
+                      selectedJob.status === 'PROCESSING' ? 'active' : 'pending'
+                    }`}>
+                      <span className="node-indicator">
+                        {selectedJob.status === 'COMPLETED' || selectedJob.status === 'FAILED' ? '✓' :
+                         selectedJob.status === 'PROCESSING' ? '●' : '○'}
+                      </span>
+                      <span className="node-name monospace">REDIS LOCK</span>
+                    </div>
+                    <span className="pipeline-arrow">→</span>
+                    <div className={`pipeline-node ${
+                      selectedJob.status === 'COMPLETED' || selectedJob.status === 'FAILED' ? 'done' : 'pending'
+                    }`}>
+                      <span className="node-indicator">
+                        {selectedJob.status === 'COMPLETED' || selectedJob.status === 'FAILED' ? '✓' : '○'}
+                      </span>
+                      <span className="node-name monospace">POSTGRES</span>
+                    </div>
+                    {selectedJob.status === 'FAILED' && (
+                      <>
+                        <span className="pipeline-arrow dlq-arrow">→</span>
+                        <div className="pipeline-node dlq-node">
+                          <span className="node-indicator">●</span>
+                          <span className="node-name monospace">DLQ</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* DLQ / Failure Notice if Failed */}
+                {selectedJob.status.toUpperCase() === 'FAILED' && (
+                  <div className="dlq-banner">
+                    <div className="dlq-header-row">
+                      <div className="dlq-title-group">
+                        <span className="dlq-badge monospace">FAILED</span>
+                        <span className="dlq-attempts monospace">Attempt {selectedJob.attemptCount ?? 0} / 3</span>
+                        <span className="dlq-tag">DLQ</span>
+                      </div>
+                      <button
+                        className="retry-btn"
+                        onClick={() => handleRetryJob(selectedJob.id)}
+                        disabled={retryLoading}
+                        title="Trigger manual recovery via POST /api/jobs/{id}/retry"
+                      >
+                        {retryLoading ? 'Retrying via Outbox...' : '↻ Retry Job'}
+                      </button>
+                    </div>
+                    <div className="dlq-body-grid">
+                      <div className="dlq-diagnostic-col">
+                        <span className="meta-label">FAILURE DIAGNOSTIC</span>
+                        <p className="dlq-diagnostic-text monospace">
+                          {selectedJob.result || `Exceeded maximum retry attempts (${selectedJob.attemptCount ?? 0}). Dispatched to DLQ routing exchange.`}
+                        </p>
+                      </div>
+                      <div className="dlq-policy-col">
+                        <span className="meta-label">RETRY POLICY</span>
+                        <div className="policy-val-row">
+                          <span className="policy-val monospace">3 attempts</span>
+                          <span className="policy-divider">·</span>
+                          <span className="policy-val monospace">5s retry delay (RabbitMQ TTL)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Retry Feedback Banner */}
+                {retryFeedback && (
+                  <div className={retryFeedback.success ? 'feedback-banner success' : 'feedback-banner error'}>
+                    {retryFeedback.message}
+                  </div>
+                )}
+
+                {/* 4 Technical Metadata Groups: Identity, Execution, Reliability, Messaging */}
+                <div className="inspector-meta-grid">
+                  {/* Column 1: Identity */}
+                  <div className="inspector-meta-group">
+                    <span className="group-title">Identity</span>
+                    <div className="meta-row">
+                      <span className="meta-label">JOB UUID</span>
+                      <code className="monospace meta-val selectable">{selectedJob.id}</code>
+                    </div>
+                    <div className="meta-row">
+                      <span className="meta-label">WORKFLOW TYPE</span>
+                      <span className="monospace meta-val">{selectedJob.type}</span>
+                    </div>
+                    <div className="meta-row">
+                      <span className="meta-label">STATUS</span>
+                      <span className="row-status-align">
+                        <span className={`calm-dot dot-${selectedJob.status.toLowerCase()}`} />
+                        <span className={`inspector-status-text status-${selectedJob.status.toLowerCase()} monospace`}>
+                          {selectedJob.status}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Column 2: Execution */}
+                  <div className="inspector-meta-group">
+                    <span className="group-title">Execution</span>
+                    <div className="meta-row">
+                      <span className="meta-label">ATTEMPT COUNT</span>
+                      <span className="monospace meta-val">
+                        {selectedJob.attemptCount ?? 0} / 3 {selectedJob.status === 'FAILED' ? '(Exhausted)' : ''}
+                        {selectedJob.status === 'FAILED' && <span className="dlq-tag">DLQ</span>}
+                      </span>
+                    </div>
+                    <div className="meta-row">
+                      <span className="meta-label">CREATED AT</span>
+                      <span className="monospace meta-val">{formatTimestamp(selectedJob.createdAt)}</span>
+                    </div>
+                    <div className="meta-row">
+                      <span className="meta-label">LAST UPDATED</span>
+                      <span className="monospace meta-val">{formatTimestamp(selectedJob.updatedAt)}</span>
+                    </div>
+                  </div>
+
+                  {/* Column 3: Reliability */}
+                  <div className="inspector-meta-group">
+                    <span className="group-title">Reliability</span>
+                    <div className="meta-row">
+                      <span className="meta-label">IDEMPOTENCY KEY</span>
+                      <code className="monospace meta-val selectable">
+                        {selectedJob.idempotencyKey || 'None provided'}
+                      </code>
+                    </div>
+                    <div className="meta-row">
+                      <span className="meta-label">REDIS LOCK</span>
+                      <span className="monospace meta-val">Mutex (flowforge:job-lock)</span>
+                    </div>
+                    <div className="meta-row">
+                      <span className="meta-label">RETRY POLICY</span>
+                      <span className="monospace meta-val">3 attempts, 5s delay</span>
+                    </div>
+                  </div>
+
+                  {/* Column 4: Messaging */}
+                  <div className="inspector-meta-group">
+                    <span className="group-title">Messaging</span>
+                    <div className="meta-row">
+                      <span className="meta-label">TRANSACTIONAL OUTBOX</span>
+                      <span className="monospace meta-val">outbox_events</span>
+                    </div>
+                    <div className="meta-row">
+                      <span className="meta-label">RABBITMQ ROUTE</span>
+                      <span className="monospace meta-val">flowforge.jobs</span>
+                    </div>
+                    <div className="meta-row">
+                      <span className="meta-label">DLQ STATE</span>
+                      <span className="monospace meta-val">
+                        {selectedJob.status === 'FAILED' ? 'flowforge.job.dlq (Active)' : 'flowforge.job.dlq (Standby)'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2-Column Code Grid: Request Payload & Execution Output */}
+                <div className="inspector-code-grid">
+                  <div className="inspector-code-card">
+                    <div className="code-card-header">
+                      <span className="code-header-title">REQUEST PAYLOAD</span>
+                      <span className="code-header-format monospace">JSON</span>
+                    </div>
+                    <pre className="code-block selectable">
+                      {formatJsonPayload(selectedJob.requestPayload)}
+                    </pre>
+                  </div>
+
+                  <div className="inspector-code-card">
+                    <div className="code-card-header">
+                      <span className="code-header-title">
+                        {selectedJob.status.toUpperCase() === 'FAILED' ? 'FAILURE REASON / RESULT' : 'EXECUTION OUTPUT'}
+                      </span>
+                      <span className="code-header-format monospace">
+                        {selectedJob.status.toUpperCase() === 'FAILED' ? 'DLQ' : selectedJob.status.toUpperCase() === 'COMPLETED' ? 'OUTPUT' : 'STATUS'}
+                      </span>
+                    </div>
+                    <pre className={selectedJob.status.toUpperCase() === 'FAILED' ? 'code-block error-block selectable' : 'code-block success-block selectable'}>
+                      {selectedJob.result || (selectedJob.status === 'QUEUED' ? 'Job is queued in PostgreSQL outbox awaiting worker execution.' : selectedJob.status === 'PROCESSING' ? 'Worker is executing workflow under Redis distributed lock.' : 'No output returned')}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        </>
       )}
 
       {/* --- MODAL 2: API DEFINITION DETAILS PANEL --- */}
@@ -813,7 +1054,7 @@ function App() {
                 </div>
                 <div className="detail-cell">
                   <span className="cell-label">Lifecycle Status</span>
-                  <span className="status-tag status-completed">{selectedApi.status}</span>
+                  <span className={`status-tag ${selectedApi.status === 'PUBLISHED' ? 'status-completed' : selectedApi.status === 'DEPRECATED' ? 'status-failed' : 'status-queued'}`}>{selectedApi.status}</span>
                 </div>
                 <div className="detail-cell">
                   <span className="cell-label">Catalog ID</span>
@@ -827,6 +1068,18 @@ function App() {
                   <span className="cell-label">Upstream Backend Target</span>
                   <code className="monospace">{selectedApi.backendUrl}</code>
                 </div>
+                {selectedApi.gatewayUrl && (
+                  <div className="detail-cell full-width">
+                    <span className="cell-label">WSO2 Gateway URL</span>
+                    <code className="monospace">{selectedApi.gatewayUrl}</code>
+                  </div>
+                )}
+                {selectedApi.wso2ApiId && (
+                  <div className="detail-cell full-width">
+                    <span className="cell-label">WSO2 API ID</span>
+                    <code className="monospace">{selectedApi.wso2ApiId}</code>
+                  </div>
+                )}
                 {selectedApi.createdAt && (
                   <div className="detail-cell full-width">
                     <span className="cell-label">Registered At</span>
@@ -849,6 +1102,15 @@ function App() {
             </div>
 
             <div className="modal-footer">
+              {selectedApi.status !== 'DEPRECATED' && (
+                <button
+                  className="btn-danger-outline"
+                  onClick={() => handleDeprecateApi(selectedApi.id)}
+                  title="Transition API lifecycle to DEPRECATED in FlowForge and WSO2"
+                >
+                  Deprecate API
+                </button>
+              )}
               <button className="secondary" onClick={() => setSelectedApi(null)}>
                 Close
               </button>

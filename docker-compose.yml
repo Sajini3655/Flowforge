@@ -68,6 +68,11 @@ services:
       FLOWFORGE_RABBITMQ_PASSWORD: ${FLOWFORGE_RABBITMQ_PASSWORD:-flowforge}
       FLOWFORGE_REDIS_HOST: redis
       FLOWFORGE_REDIS_PORT: 6379
+      FLOWFORGE_WSO2_PUBLISHER_URL: https://wso2-apim:9443/api/am/publisher/v4
+      FLOWFORGE_WSO2_GATEWAY_URL: https://localhost:8243
+      FLOWFORGE_WSO2_USERNAME: admin
+      FLOWFORGE_WSO2_PASSWORD: admin
+      FLOWFORGE_WSO2_INSECURE_TLS: "true"
     ports:
       - "8080:8080"
     depends_on:
@@ -101,6 +106,7 @@ services:
         condition: service_healthy
     ports:
       - "8243:8243"
+      - "9443:9443"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:9763/services/Version"]
       interval: 30s

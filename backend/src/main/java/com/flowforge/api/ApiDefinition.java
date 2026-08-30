@@ -32,6 +32,12 @@ public class ApiDefinition {
     @Column(nullable = false)
     private ApiStatus status = ApiStatus.DRAFT;
 
+    @Column(name = "wso2_api_id")
+    private String wso2ApiId;
+
+    @Column(name = "gateway_url")
+    private String gatewayUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id")
     @JsonIgnore
@@ -41,6 +47,7 @@ public class ApiDefinition {
     private Instant createdAt = Instant.now();
 
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getDescription() { return description; }
@@ -53,6 +60,10 @@ public class ApiDefinition {
     public void setBackendUrl(String backendUrl) { this.backendUrl = backendUrl; }
     public ApiStatus getStatus() { return status; }
     public void setStatus(ApiStatus status) { this.status = status; }
+    public String getWso2ApiId() { return wso2ApiId; }
+    public void setWso2ApiId(String wso2ApiId) { this.wso2ApiId = wso2ApiId; }
+    public String getGatewayUrl() { return gatewayUrl; }
+    public void setGatewayUrl(String gatewayUrl) { this.gatewayUrl = gatewayUrl; }
     public User getOwner() { return owner; }
     public void setOwner(User owner) { this.owner = owner; }
     public Instant getCreatedAt() { return createdAt; }

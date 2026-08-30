@@ -31,4 +31,9 @@ public class ApiDefinitionController {
     public ApiDefinition create(@Valid @RequestBody ApiDefinitionRequest request) {
         return service.create(request);
     }
+
+    @PostMapping("/{id}/deprecate")
+    public ApiDefinition deprecate(@PathVariable Long id) {
+        return service.deprecate(id);
+    }
 }

@@ -11,4 +11,8 @@ public interface ApiDefinitionRepository extends JpaRepository<ApiDefinition, Lo
 	List<ApiDefinition> findAllByOwner(User owner);
 
 	Optional<ApiDefinition> findByIdAndOwner(Long id, User owner);
+
+	boolean existsByNameIgnoreCase(String name);
+
+	boolean existsByBasePath(String basePath);
 }

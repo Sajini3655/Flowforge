@@ -1,13 +1,14 @@
 # FlowForge
 
-> API Management & Distributed Workflow Platform built with Java 21, Spring Boot 3.5, PostgreSQL, RabbitMQ, Redis, WSO2 API Manager, and Kubernetes.
+> API Management & Distributed Workflow Platform built with Java 21, Spring Boot 3.5, PostgreSQL, RabbitMQ, Redis, WSO2 API Manager 4.7.0, and Kubernetes.
 
 [![CI/CD Pipeline](https://github.com/Sajini3655/Flowforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Sajini3655/Flowforge/actions/workflows/ci.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange.svg)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.5-brightgreen.svg)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3.13-orange.svg)
 ![Redis](https://img.shields.io/badge/Redis-7.4-red.svg)
+![WSO2 APIM](https://img.shields.io/badge/WSO2%20APIM-4.7.0-darkblue.svg)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Kustomize-326ce5.svg)
 ![Prometheus](https://img.shields.io/badge/Prometheus-v2.51-e6522c.svg)
 ![Grafana](https://img.shields.io/badge/Grafana-v10.4-F46800.svg)
@@ -16,17 +17,18 @@
 
 ## Overview
 
-FlowForge is an asynchronous workflow execution and API management platform designed to solve core reliability and concurrency challenges in distributed backend systems:
-- **Dual-Write Consistency**: Eliminates message-loss race conditions between relational databases and message brokers via the **Transactional Outbox Pattern**.
-- **Idempotency & Deduplication**: Prevents duplicate executions from network retries using database-backed request fingerprinting.
-- **Poison-Pill Isolation**: Non-blocking delayed retry queues and Dead-Letter Queues (DLQ) protect worker threads from infinite failure loops.
-- **Distributed Race Conditions**: Redis distributed locking (`SET NX PX` + atomic Lua unlock) prevents concurrent execution of identical jobs across horizontally scaled workers.
-- **Zero-Trust Security**: WSO2 API Manager TLS termination paired with asymmetric RS256 JWT validation and a public JWKS endpoint.
+FlowForge is an API management and asynchronous distributed workflow execution platform designed for production reliability and distributed coordination:
+- **API Management (WSO2 APIM 4.7.0)**: Dynamic API registration via `POST /api/apis`, automatic API creation in WSO2 Publisher, lifecycle management (`PUBLISHED`, `DEPRECATED`), revision deployment, and TLS-terminated Gateway routing with RS256 JWT validation against FlowForge's JWKS endpoint.
+- **Dual-Write Consistency**: Eliminates message-loss race conditions between relational databases and message brokers via the **Transactional Outbox Pattern** with dedicated background polling.
+- **Strict Idempotency & Deduplication**: Prevents duplicate executions from network retries using database-backed unique constraints and SHA-256 request fingerprinting.
+- **Asynchronous Reliability Pipeline**: RabbitMQ delayed retry queue (5s TTL) with exponential attempt tracking, automatic Dead-Letter Queue (`flowforge.job.dlq`) routing on 3rd attempt failure, and manual recovery via `POST /api/jobs/{id}/retry`.
+- **Distributed Mutual Exclusion**: Redis cluster-safe locking (`SET NX PX` + atomic Lua script release) preventing duplicate concurrent job execution across horizontally scaled workers.
+- **Zero-Trust Security**: Asymmetric RS256 JWT authentication, BCrypt password hashing, role-based access control (`ROLE_ADMIN`, `ROLE_USER`), and a public JWKS endpoint (`/.well-known/jwks.json`).
+- **Full Observability**: Micrometer instrumentation, `/actuator/prometheus` scraping, Prometheus alerting rules, and provisioned Grafana dashboards.
 
 > **Implementation Scope & Engineering Honesty**:
-> - **Fully Implemented & Automated Locally**: Core REST API, Transactional Outbox, RabbitMQ worker queues, Redis locking, RS256 authentication, 93 unit tests, and 31 Testcontainers integration tests.
-> - **Configured & Locally Verified**: WSO2 API Manager gateway pass-through, Prometheus metric scraping, alert rules, and auto-provisioned Grafana dashboards running under Docker Compose.
-> - **Syntactically Validated Kubernetes Architecture**: Declarative Kustomize manifests (`k8s/`) validated via `kubectl kustomize`, but intentionally not deployed to a live cloud provider (AWS/GCP/Azure) to avoid hosting costs.
+> - **Fully Implemented & Automated Locally**: Core REST API, dynamic WSO2 API Manager 4.7.0 integration, Transactional Outbox, RabbitMQ worker queues, delayed retry queue, Dead Letter Queue, Redis locking, RS256 authentication, 110 unit tests + 31 integration tests (100% passing), and full Docker Compose environment.
+> - **Kubernetes Architecture**: Declarative Kustomize manifests (`k8s/`) are included and locally validated; cloud deployment is not part of the current project scope.
 
 ---
 
@@ -96,8 +98,8 @@ graph TB
 | Domain | Technology | Version | Purpose |
 | :--- | :--- | :--- | :--- |
 | **Backend Runtime** | Java / Eclipse Temurin | 21 (LTS) | Modern Java runtime with virtual-thread capability |
-| **Application Framework** | Spring Boot | 3.5.5 | REST controllers, Spring Security, Spring Data JPA |
-| **Database** | PostgreSQL | 16 | Relational persistence, Flyway migrations V1–V6 |
+| **Application Framework** | Spring Boot | 3.5.16 | REST controllers, Spring Security, Spring Data JPA |
+| **Database** | PostgreSQL | 16 | Relational persistence, Flyway migrations V1–V8 |
 | **Message Broker** | RabbitMQ | 3.13 | Asynchronous queueing, delayed retries, DLQ |
 | **Distributed Cache** | Redis | 7.4 | Distributed locking (`SET NX PX` + Lua) |
 | **API Gateway** | WSO2 API Manager | 4.7.0 | TLS termination, proxy routing, token pass-through |
@@ -174,9 +176,9 @@ sequenceDiagram
 
 ## Testing
 
-FlowForge maintains a strict test pyramid with **124 total automated tests (100% passing)**:
+FlowForge maintains a strict test pyramid with **141 total automated tests (100% passing)**:
 
-- **93 Unit Tests**: Unit verification of security filters, JWT signing/parsing, API controllers, outbox publisher, idempotency logic, and metric counters.
+- **110 Unit Tests**: Unit verification of security filters, JWT signing/parsing, API controllers, outbox publisher, idempotency logic, WSO2 integration, and metric counters.
 - **31 Integration Tests (Testcontainers)**: Live multi-container integration testing using ephemeral PostgreSQL and RabbitMQ instances:
   - `SecurityIT` (10 tests): RS256 token verification, claims validation, RBAC enforcement, expired token rejection.
   - `JobApiIT` (10 tests): Idempotency caching, SHA-256 fingerprint collision prevention, job state transitions.
@@ -239,36 +241,53 @@ This uses:
 - RabbitMQ: `localhost:5673`
 - Redis: `localhost:6379`
 
-### 2. Optional: WSO2 API Gateway Profile
-```powershell
-docker compose --profile wso2 up -d --build
-.\infra\wso2\publish-api.ps1
-```
-Gateway proxy endpoint: `https://localhost:8243/flowforge/v1/jobs`
+### 2. End-to-End System Demonstrations
 
-### 3. API Usage Walkthrough
-
+#### Demo 1 — API Management (Dynamic WSO2 Gateway Registration)
 ```bash
-# 1. Register a user
-curl -s -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"engineer@flowforge.local","password":"Password123!","role":"USER"}'
-
-# 2. Authenticate to obtain RS256 JWT
+# 1. Obtain Admin JWT Token
 TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"engineer@flowforge.local","password":"Password123!"}' | jq -r .token)
+  -d '{"email":"admin@flowforge.local","password":"Admin123!"}' | jq -r .token)
 
-# 3. Submit an asynchronous workflow job with Idempotency Key
+# 2. Register API in FlowForge -> Automatically published and deployed to WSO2
+curl -s -X POST http://localhost:8080/api/apis \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Orders Service API","version":"v1","basePath":"/orders","backendUrl":"http://backend:8080/api/health"}'
+
+# 3. Invoke WSO2 Gateway (TLS + RS256 token verification -> upstream routing)
+curl -k -i -H "Authorization: Bearer $TOKEN" https://localhost:8243/orders/v1/ready
+```
+
+> [!NOTE]
+> **WSO2 TLS Configuration**: In local development with Docker Compose, WSO2 API Manager uses default self-signed certificates, enabled via `FLOWFORGE_WSO2_INSECURE_TLS=true`. In production, `flowforge.wso2.insecure-tls` defaults to `false` and validates against the system CA trust store.
+
+#### Demo 2 — Successful Asynchronous Workflow
+```bash
+# Submit ECHO job with Idempotency Key -> Outbox -> RabbitMQ -> Worker -> COMPLETED
 curl -s -X POST http://localhost:8080/api/jobs \
   -H "Authorization: Bearer $TOKEN" \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -H "X-Correlation-ID: flowforge-demo-001" \
+  -H "Idempotency-Key: demo-echo-001" \
+  -H "X-Correlation-ID: flowforge-corr-001" \
   -H "Content-Type: application/json" \
-  -d '{"type":"DATA_AGGREGATION","payload":"{\"datasetId\": 101}"}'
+  -d '{"type":"ECHO","requestPayload":"{\"message\":\"Hello FlowForge\"}"}'
+```
 
-# 4. Query job execution status
-curl -s http://localhost:8080/api/jobs/{jobId} \
+#### Demo 3 — Reliability Pipeline & Dead-Letter Queue (DLQ)
+```bash
+# Simulate poison pill -> Attempt 1 (fail) -> Retry Queue (5s delay) -> Attempt 2 (fail) -> Attempt 3 (fail) -> FAILED / DLQ
+curl -s -X POST http://localhost:8080/api/jobs \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: demo-fail-001" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"TRANSIENT_FAILURE","requestPayload":"{\"simulation\":\"SERVICE_TIMEOUT\"}"}'
+```
+
+#### Demo 4 — Manual Recovery from DLQ
+```bash
+# Manually recover failed job -> Resets attempts to 0, status to QUEUED -> Re-executes via Outbox
+curl -s -X POST http://localhost:8080/api/jobs/{jobId}/retry \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -280,7 +299,7 @@ Automated via GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.
 
 ```mermaid
 flowchart LR
-    A[Code Push / PR] --> B[Unit Tests\n93 tests]
+    A[Code Push / PR] --> B[Unit Tests\n110 tests]
     B --> C[Integration Tests\nTestcontainers\n31 tests]
     C --> D[Package & SBOM\nFat JAR + CycloneDX]
     A --> E[Frontend Build\nNode 20 + npm audit]
@@ -298,7 +317,7 @@ flowforge/
 ├── .github/workflows/         # GitHub Actions CI/CD pipeline
 ├── backend/                   # Spring Boot 3.5 / Java 21 REST backend
 │   ├── src/main/java/         # Application code (API, Jobs, Outbox, Messaging, Security)
-│   ├── src/main/resources/    # Flyway migrations V1-V6 & application properties
+│   ├── src/main/resources/    # Flyway migrations V1-V8 & application properties
 │   ├── src/test/java/         # Unit tests and Testcontainers integration suites
 │   └── Dockerfile             # Multi-stage non-root container build
 ├── frontend/                  # React + TypeScript administrative dashboard (Vite)
