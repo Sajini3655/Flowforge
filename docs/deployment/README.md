@@ -100,7 +100,7 @@ and `FLOWFORGE_JWT_PUBLIC_KEY_PATH`). Ports and operational settings have docume
 and can be overridden with the existing `FLOWFORGE_*` variables. Secrets must come from the
 deployment environment, Kubernetes Secrets, or a secret manager, never source control.
 
-Flyway applies migrations V1-V6 during backend startup. Hibernate is configured
+Flyway applies migrations V1-V8 during backend startup. Hibernate is configured
 for schema validation rather than schema creation.
 
 ## CI

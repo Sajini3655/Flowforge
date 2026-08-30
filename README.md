@@ -26,9 +26,8 @@ FlowForge is an API management and asynchronous distributed workflow execution p
 - **Zero-Trust Security**: Asymmetric RS256 JWT authentication, BCrypt password hashing, role-based access control (`ROLE_ADMIN`, `ROLE_USER`), and a public JWKS endpoint (`/.well-known/jwks.json`).
 - **Full Observability**: Micrometer instrumentation, `/actuator/prometheus` scraping, Prometheus alerting rules, and provisioned Grafana dashboards.
 
-> **Implementation Scope & Engineering Honesty**:
-> - **Fully Implemented & Automated Locally**: Core REST API, dynamic WSO2 API Manager 4.7.0 integration, Transactional Outbox, RabbitMQ worker queues, delayed retry queue, Dead Letter Queue, Redis locking, RS256 authentication, 110 unit tests + 31 integration tests (100% passing), and full Docker Compose environment.
-> - **Kubernetes Architecture**: Declarative Kustomize manifests (`k8s/`) are included and locally validated; cloud deployment is not part of the current project scope.
+> [!NOTE]
+> **Deployment Scope**: FlowForge is architected and tested as a complete local platform running via Docker Compose, with declarative Kubernetes manifests (`k8s/`) validated via Kustomize. Cloud-hosted deployment is intentionally outside the project scope.
 
 ---
 

@@ -23,7 +23,7 @@ graph TB
     end
 
     subgraph DataLayer [Storage & Coordination Layer]
-        PG[(PostgreSQL 16`nAuthoritative Persistence`nFlyway Migrations V1-V6)]
+        PG[(PostgreSQL 16`nAuthoritative Persistence`nFlyway Migrations V1-V8)]
         RABBIT[RabbitMQ 3.13 Broker`nDirect, Retry & Dead-Letter Queues]
         REDIS[(Redis 7.4`nDistributed Lock Manager`nSET NX PX + Lua Unlock)]
     end
