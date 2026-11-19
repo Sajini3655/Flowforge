@@ -3,6 +3,7 @@
 > API Management & Distributed Workflow Platform built with Java 21, Spring Boot 3.5, PostgreSQL, RabbitMQ, Redis, WSO2 API Manager 4.7.0, and Kubernetes.
 
 [![CI/CD Pipeline](https://github.com/Sajini3655/Flowforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Sajini3655/Flowforge/actions/workflows/ci.yml)
+[![Live Showcase](https://img.shields.io/badge/Live%20Showcase-GitHub%20Pages-00A896.svg)](https://sajini3655.github.io/Flowforge/)
 ![Java](https://img.shields.io/badge/Java-21-orange.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
@@ -14,6 +15,12 @@
 ![Grafana](https://img.shields.io/badge/Grafana-v10.4-F46800.svg)
 
 ---
+
+> [!TIP]
+> **Live Interactive Showcase (No Installation Required)**:  
+> Explore the live interactive architecture and workflow engine directly in your browser:  
+> 👉 **[https://sajini3655.github.io/Flowforge/](https://sajini3655.github.io/Flowforge/)**  
+> *Simulates API lifecycle management, transactional outbox progression, SHA-256 idempotency deduplication, RabbitMQ 3-attempt delayed retries, and Redis distributed mutual exclusion.*
 
 ## Overview
 
