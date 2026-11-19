@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -5,7 +6,14 @@ export default defineConfig({
   plugins: [react()],
   base: process.env.NODE_ENV === 'production' ? '/Flowforge/' : '/',
   server: {
+    host: '0.0.0.0',
     port: 5174
+  },
+  // @ts-expect-error vitest config
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/__tests__/setup.ts']
   },
   build: {
     chunkSizeWarningLimit: 1000,
