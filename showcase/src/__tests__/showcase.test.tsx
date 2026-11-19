@@ -243,8 +243,8 @@ describe('FlowForge Showcase — Core State & Reliability Testing', () => {
 
   it('9. Renders DisclaimerBanner with prominent simulation indicator', () => {
     renderWithProvider(<DisclaimerBanner />);
-    expect(screen.getByText(/Interactive Demo — Simulated Data/i)).toBeDefined();
-    expect(screen.getByText(/Real Backend Architecture/i)).toBeDefined();
+    expect(screen.getByText(/Demo Mode/i)).toBeDefined();
+    expect(screen.getByText(/Architecture Note/i)).toBeDefined();
   });
 
   it('10. Renders Sidebar and allows module view switching', () => {

@@ -73,7 +73,7 @@ describe('FlowForge Showcase — UI Interactions & Forms', () => {
       </ShowcaseProvider>
     );
 
-    expect(screen.getByText(/Workflow Definitions & Execution Triggers/i)).toBeDefined();
+    expect(screen.getByText(/Workflow Definitions/i)).toBeDefined();
 
     // Click "Run Workflow" on first available workflow
     const runButtons = screen.getAllByRole('button', { name: /Run Workflow/i });

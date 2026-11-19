@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { 
   Activity, 
   Terminal, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Clock, 
-  ShieldCheck 
+  CheckCircle2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -15,9 +12,7 @@ import {
   YAxis, 
   Tooltip, 
   CartesianGrid, 
-  Legend,
-  BarChart,
-  Bar
+  Legend
 } from 'recharts';
 import { useShowcase } from '../../context/ShowcaseContext';
 import { StatCard } from '../common/StatCard';
@@ -81,38 +76,38 @@ jvm_memory_used_bytes{area="heap",id="G1 Eden Space",} 4.194304E7`;
       {/* Header */}
       <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-forge-teal" />
-            Observability & Telemetry Center
+          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-slate-700" />
+            <span>Observability & Telemetry Center</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Real-time Micrometer instrumentation, Prometheus scraping (5s interval), and Grafana operational metrics.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Micrometer instrumentation schema, simulated Prometheus metrics, and Kubernetes health probes.
           </p>
         </div>
 
         <button
           onClick={() => setShowPrometheusRaw(!showPrometheusRaw)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-navy-950 text-teal-400 border border-navy-800 hover:bg-navy-900 transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 transition-colors cursor-pointer"
         >
-          <Terminal className="w-4 h-4" />
-          <span>{showPrometheusRaw ? 'Hide Raw Prometheus Exporter' : 'Inspect /actuator/prometheus'}</span>
+          <Terminal className="w-3.5 h-3.5" />
+          <span>{showPrometheusRaw ? 'Hide Raw Output' : 'Inspect /actuator/prometheus'}</span>
         </button>
       </div>
 
-      {/* Raw Prometheus Exporter Modal / Dropdown */}
+      {/* Raw Prometheus Scrape Output Drawer */}
       {showPrometheusRaw && (
-        <div className="bg-navy-950 p-4 rounded-xl border border-navy-800 space-y-2 animate-fadeIn text-xs">
-          <div className="flex items-center justify-between text-slate-400 font-mono text-[11px] border-b border-navy-800 pb-2">
-            <span>GET http://localhost:8080/actuator/prometheus (Live Response)</span>
-            <span className="text-teal-400">Content-Type: text/plain; version=0.0.4</span>
+        <div className="bg-navy-950 p-4 rounded-xl border border-navy-800 text-xs font-mono space-y-2 animate-fadeIn">
+          <div className="flex items-center justify-between text-slate-400 text-[11px] pb-2 border-b border-navy-800">
+            <span className="text-teal-400">Endpoint: GET http://localhost:8080/actuator/prometheus</span>
+            <span>Content-Type: text/plain; version=0.0.4</span>
           </div>
-          <pre className="font-mono text-emerald-400 overflow-x-auto p-2 leading-relaxed max-h-60">
+          <pre className="text-emerald-400 overflow-x-auto leading-relaxed max-h-72 p-2">
             <code>{rawPrometheusMetrics}</code>
           </pre>
         </div>
       )}
 
-      {/* Custom Micrometer Metric Stat Cards */}
+      {/* 5 Micrometer Metric StatCards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 font-mono">
         <StatCard
           title="jobs_submitted_total"
@@ -124,108 +119,98 @@ jvm_memory_used_bytes{area="heap",id="G1 Eden Space",} 4.194304E7`;
         <StatCard
           title="jobs_completed_total"
           value={stats.completedJobs}
-          subtitle="At-least-once successful"
+          subtitle="Counter total"
           icon={CheckCircle2}
           iconColor="text-emerald-600"
         />
         <StatCard
-          title="retry_attempts_total"
+          title="jobs_retried_total"
           value={stats.retryingJobs + (stats.deadLetterJobs * 3)}
-          subtitle="5s TTL queue sweeps"
-          icon={Clock}
+          subtitle="5s TTL queue"
+          icon={Activity}
           iconColor="text-amber-600"
         />
         <StatCard
-          title="dlq_publications_total"
+          title="jobs_dlq_total"
           value={stats.deadLetterJobs}
-          subtitle="Quarantined poison pills"
-          icon={AlertTriangle}
+          subtitle="Poison pills in DLQ"
+          icon={Activity}
           iconColor="text-rose-600"
         />
         <StatCard
-          title="lock_acquired_total"
+          title="redis_lock_acquired"
           value={stats.completedJobs + stats.deadLetterJobs}
-          subtitle="Redis SET NX PX"
-          icon={ShieldCheck}
+          subtitle="SET NX PX locks"
+          icon={Activity}
           iconColor="text-teal-600"
         />
       </div>
 
-      {/* Grafana Time-Series Graphs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Job Ingestion vs Completion Rate</h3>
-              <p className="text-xs text-slate-500">Live operational rate scraped by Prometheus server (Port 9090)</p>
-            </div>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Scrape: 5s
-            </span>
+      {/* Telemetry Stream Chart */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 uppercase font-mono tracking-wider">
+              Illustrative Telemetry Stream
+            </h3>
+            <p className="text-[11px] text-slate-500">Modeled time-series view representing Prometheus metric scraping</p>
           </div>
-
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={REALTIME_TELEMETRY} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} />
-                <YAxis stroke="#94a3b8" fontSize={11} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0B132B', border: '1px solid #1C2541', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                <Line type="monotone" dataKey="submitted" stroke="#6366F1" strokeWidth={2} name="Jobs Submitted" dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="completed" stroke="#10B981" strokeWidth={2} name="Jobs Completed" dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+            5s Scrape Interval
+          </span>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Retry Spikes & Dead-Letter Isolation</h3>
-              <p className="text-xs text-slate-500">Alert condition monitoring: flowforge.job.retry vs flowforge.job.dlq</p>
-            </div>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-              PromQL: rate(dlq[5m])
-            </span>
-          </div>
-
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={REALTIME_TELEMETRY} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} />
-                <YAxis stroke="#94a3b8" fontSize={11} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0B132B', border: '1px solid #1C2541', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                <Bar dataKey="retries" fill="#F59E0B" name="Retry Queue Depth" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="dlq" fill="#EF4444" name="DLQ Quarantined" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={REALTIME_TELEMETRY} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="time" stroke="#94A3B8" fontSize={11} tickLine={false} />
+              <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0B132B', borderColor: '#1E293B', borderRadius: '8px', color: '#F8FAFC', fontSize: '11px' }} 
+              />
+              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+              <Line type="monotone" dataKey="submitted" name="Submitted" stroke="#6366F1" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="completed" name="Completed" stroke="#10B981" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="retries" name="Retries" stroke="#F59E0B" strokeWidth={1.5} dot={{ r: 2 }} />
+              <Line type="monotone" dataKey="dlq" name="DLQ Quarantined" stroke="#EF4444" strokeWidth={1.5} dot={{ r: 2 }} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Readiness Endpoint Inspection */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-sm space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            Multi-Dependency Health & Readiness Probe (GET /api/health/ready)
-          </h3>
-          <p className="text-xs text-slate-500">
-            Dynamically checks live socket availability across all 4 backing infrastructure tiers.
-          </p>
+      {/* Health Probes & Prometheus Config */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-sm space-y-3">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 uppercase font-mono tracking-wider">
+              Kubernetes Readiness Probe JSON
+            </h3>
+            <p className="text-[11px] text-slate-500">Response payload from GET /api/health/ready</p>
+          </div>
+          <JsonViewer data={healthReadinessPayload} />
         </div>
 
-        <JsonViewer
-          title="HTTP 200 OK — Readiness Probe Output"
-          data={healthReadinessPayload}
-        />
+        <div className="bg-white p-5 rounded-xl border border-slate-200/90 shadow-sm space-y-3">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 uppercase font-mono tracking-wider">
+              Prometheus Scrape Configuration
+            </h3>
+            <p className="text-[11px] text-slate-500">From infra/prometheus/prometheus.yml</p>
+          </div>
+          <pre className="p-3.5 rounded-lg bg-navy-950 text-emerald-400 font-mono text-xs overflow-x-auto leading-relaxed border border-navy-800">
+            <code>{`scrape_configs:
+  - job_name: 'flowforge-backend'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 5s
+    scrape_timeout: 4s
+    static_configs:
+      - targets: ['backend:8080']
+        labels:
+          application: 'flowforge-backend'
+          environment: 'production'`}</code>
+          </pre>
+        </div>
       </div>
     </div>
   );

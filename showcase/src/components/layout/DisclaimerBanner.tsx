@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Info, ExternalLink, Server, CheckCircle2, ShieldCheck, Cpu } from 'lucide-react';
+import { ExternalLink, Server, CheckCircle2, ShieldCheck, Cpu } from 'lucide-react';
 import { Modal } from './Modal';
 
 export const DisclaimerBanner: React.FC = () => {
@@ -7,33 +7,32 @@ export const DisclaimerBanner: React.FC = () => {
 
   return (
     <>
-      <aside aria-label="Demo environment status" className="bg-gradient-to-r from-navy-950 via-navy-900 to-navy-950 text-white text-xs px-4 py-2 border-b border-navy-700/60 shadow-inner flex flex-wrap items-center justify-between gap-2 z-30">
-        <div className="flex items-center gap-2.5">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-semibold bg-forge-teal/20 text-teal-300 border border-forge-teal/40 uppercase tracking-wider text-[10px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-forge-teal animate-pulse"></span>
-            Interactive Demo — Simulated Data
+      <aside aria-label="Demo environment status" className="bg-slate-100 border-b border-slate-200/90 text-slate-700 text-xs px-4 py-1.5 flex items-center justify-between gap-3 z-30">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-800 border border-amber-200 font-mono">
+            Demo Mode
           </span>
-          <span className="text-slate-300 hidden md:inline">
-            Client-side interactive simulation of FlowForge&apos;s distributed workflow engine.
+          <span className="text-slate-600 text-xs hidden sm:inline">
+            Client-side interactive simulation. Full backend implementation and automated test suites reside in repository.
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 text-xs">
           <button
             onClick={() => setShowInfoModal(true)}
-            className="inline-flex items-center gap-1 text-slate-300 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
+            className="text-slate-600 hover:text-slate-900 underline underline-offset-2 transition-colors cursor-pointer"
           >
-            <Info className="w-3.5 h-3.5 text-teal-400" />
-            <span>Real Backend Architecture</span>
+            Architecture Note
           </button>
+          <span className="text-slate-300">|</span>
           <a
             href="https://github.com/Sajini3655/Flowforge"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-teal-400 hover:text-teal-300 font-medium transition-colors"
+            className="text-slate-600 hover:text-slate-900 font-medium inline-flex items-center gap-1"
           >
-            <span>GitHub Repository</span>
-            <ExternalLink className="w-3 h-3" />
+            <span>GitHub</span>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
           </a>
         </div>
       </aside>
@@ -43,30 +42,30 @@ export const DisclaimerBanner: React.FC = () => {
         isOpen={showInfoModal}
         onClose={() => setShowInfoModal(false)}
         title="FlowForge Architecture & Runtime Note"
-        subtitle="Distinguishing this Client-Side Interactive Demo from the Production Backend"
+        subtitle="Distinguishing client-side demonstration from the repository backend codebase"
         maxWidth="max-w-2xl"
       >
         <div className="space-y-4">
-          <div className="p-4 rounded-lg bg-teal-50/60 border border-teal-200 text-teal-900">
-            <h4 className="font-semibold text-sm flex items-center gap-2 mb-1">
-              <Server className="w-4 h-4 text-forge-teal" />
-              Why this Interactive Showcase exists
+          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700">
+            <h4 className="font-semibold text-xs text-slate-900 flex items-center gap-1.5 mb-1">
+              <Server className="w-4 h-4 text-slate-700" />
+              Interactive Showcase Purpose
             </h4>
-            <p className="text-xs leading-relaxed text-teal-800">
-              FlowForge is a production-style distributed workflow platform requiring an enterprise runtime stack 
-              (Java 21, Spring Boot, PostgreSQL 16, RabbitMQ 3.13, Redis 7.4, and WSO2 API Manager 4.7.0). 
-              To allow recruiters, hiring managers, and interviewers to explore its concepts directly in the browser 
-              without spinning up local Docker clusters or paying for expensive cloud hosting, this interactive showcase 
-              simulates the exact finite-state transitions, retry pipelines, idempotency checks, and locking mechanisms in client-side TypeScript.
+            <p className="text-xs leading-relaxed text-slate-600">
+              FlowForge is an enterprise distributed workflow platform designed to run on 
+              Java 21, Spring Boot 3.5, PostgreSQL 16, RabbitMQ 3.13, Redis 7.4, and WSO2 API Manager 4.7.0. 
+              To allow technical reviewers and recruiters to explore the system without provisioning local infrastructure, 
+              this showcase simulates state machine transitions, delayed retry policies, idempotency checks, 
+              and distributed locking directly in the browser.
             </p>
           </div>
 
           <div>
-            <h4 className="font-semibold text-slate-900 text-sm mb-2">Verified Real Backend Capabilities (in Repo):</h4>
+            <h4 className="font-semibold text-slate-900 text-xs mb-2">Verified Implemented Backend (in Repository):</h4>
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <li className="flex items-start gap-2 p-2 rounded bg-slate-50 border border-slate-200">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span><strong>Transactional Outbox:</strong> Atomic PostgreSQL commit + background polling publisher.</span>
+                <span><strong>Transactional Outbox:</strong> Atomic PostgreSQL dual write + scheduled polling publisher.</span>
               </li>
               <li className="flex items-start gap-2 p-2 rounded bg-slate-50 border border-slate-200">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -74,15 +73,15 @@ export const DisclaimerBanner: React.FC = () => {
               </li>
               <li className="flex items-start gap-2 p-2 rounded bg-slate-50 border border-slate-200">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span><strong>Redis Distributed Locking:</strong> Cluster-safe <code className="bg-slate-200 px-1 py-0.5 rounded">SET NX PX</code> + Lua compare-and-delete.</span>
+                <span><strong>Redis Distributed Locking:</strong> <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">SET NX PX</code> + Lua compare-and-delete.</span>
               </li>
               <li className="flex items-start gap-2 p-2 rounded bg-slate-50 border border-slate-200">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span><strong>WSO2 APIM 4.7.0 Gateway:</strong> Dynamic API registration & revision deployment.</span>
+                <span><strong>WSO2 APIM Gateway:</strong> Dynamic API registration & revision deployment on port 8243.</span>
               </li>
               <li className="flex items-start gap-2 p-2 rounded bg-slate-50 border border-slate-200">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span><strong>Strict Idempotency:</strong> SHA-256 fingerprinting on <code className="bg-slate-200 px-1 py-0.5 rounded">Idempotency-Key</code> header.</span>
+                <span><strong>Strict Idempotency:</strong> SHA-256 payload fingerprinting on <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">Idempotency-Key</code>.</span>
               </li>
               <li className="flex items-start gap-2 p-2 rounded bg-slate-50 border border-slate-200">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -91,23 +90,23 @@ export const DisclaimerBanner: React.FC = () => {
             </ul>
           </div>
 
-          <div className="p-3 bg-slate-100 rounded-lg text-xs text-slate-600 flex items-center justify-between">
+          <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-600 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border border-slate-200">
             <span className="flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-slate-500" />
-              Public RSA JWKS endpoint at <code className="font-mono text-slate-800">/api/.well-known/jwks.json</code>
+              RS256 JWKS endpoint: <code className="font-mono text-slate-800">/api/.well-known/jwks.json</code>
             </span>
             <span className="flex items-center gap-1.5">
               <Cpu className="w-4 h-4 text-slate-500" />
-              15 Kubernetes Kustomize manifests in <code className="font-mono text-slate-800">k8s/</code>
+              Prometheus metrics: <code className="font-mono text-slate-800">/actuator/prometheus</code>
             </span>
           </div>
 
-          <div className="pt-2 flex justify-end">
+          <div className="flex justify-end pt-2">
             <button
               onClick={() => setShowInfoModal(false)}
-              className="px-4 py-2 bg-slate-900 text-white font-medium text-xs rounded-lg hover:bg-slate-800 transition-colors"
+              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold cursor-pointer"
             >
-              Continue to Interactive Showcase
+              Close
             </button>
           </div>
         </div>

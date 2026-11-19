@@ -6,7 +6,7 @@ interface BadgeProps {
   pulse?: boolean;
 }
 
-export const Badge: React.FC<BadgeProps> = ({ status, size = 'sm', pulse = false }) => {
+export const Badge: React.FC<BadgeProps> = ({ status, size = 'sm' }) => {
   const norm = status.toUpperCase();
 
   let styles = 'bg-slate-100 text-slate-700 border-slate-300';
@@ -39,7 +39,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, size = 'sm', pulse = false
 
   return (
     <span className={`inline-flex items-center gap-1.5 font-medium rounded-full border ${sizeClasses} ${styles}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${pulse ? 'animate-ping' : ''}`}></span>
+      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></span>
       <span>{status}</span>
     </span>
   );
