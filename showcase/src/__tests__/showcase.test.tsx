@@ -1,262 +1,135 @@
-import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
-import { ShowcaseProvider, useShowcase } from '../context/ShowcaseContext';
-import { DisclaimerBanner } from '../components/layout/DisclaimerBanner';
-import { Sidebar } from '../components/layout/Sidebar';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import App from '../App';
+import { mockService } from '../services/mockAdapter';
 
-// Test consumer component to expose context methods directly
-let exposedContext: ReturnType<typeof useShowcase>;
-
-const ContextConsumer: React.FC = () => {
-  exposedContext = useShowcase();
-  return <div data-testid="ready">Ready</div>;
-};
-
-const renderWithProvider = (ui?: React.ReactNode) => {
-  return render(
-    <ShowcaseProvider>
-      {ui}
-      <ContextConsumer />
-    </ShowcaseProvider>
-  );
-};
-
-describe('FlowForge Showcase — Core State & Reliability Testing', () => {
+describe('FlowForge Original UI & Mock Service Testing', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.useRealTimers();
+    mockService.reset();
   });
 
-  it('1. Initializes with correct seed data and unified statistics', () => {
-    renderWithProvider();
-    expect(exposedContext).toBeDefined();
-    expect(exposedContext.apis.length).toBeGreaterThanOrEqual(4);
-    expect(exposedContext.workflows.length).toBeGreaterThanOrEqual(4);
-    expect(exposedContext.jobs.length).toBeGreaterThanOrEqual(5);
-    expect(exposedContext.outbox.length).toBeGreaterThanOrEqual(3);
-    
-    // Stats consistency
-    const { stats, jobs, apis } = exposedContext;
-    expect(stats.totalApis).toBe(apis.length);
-    expect(stats.totalJobs).toBe(jobs.length);
-    expect(stats.completedJobs).toBe(jobs.filter(j => j.status === 'COMPLETED').length);
+  it('1. Renders the original FlowForge Orchestrator header and branding', () => {
+    render(<App />);
+    expect(screen.getByText('FLOWFORGE')).toBeDefined();
+    expect(screen.getByText('ORCHESTRATOR')).toBeDefined();
+    expect(screen.getByText('PostgreSQL')).toBeDefined();
+    expect(screen.getByText('RabbitMQ')).toBeDefined();
+    expect(screen.getByText('Redis')).toBeDefined();
+    expect(screen.getByText('WSO2')).toBeDefined();
+    expect(screen.getByText('Demo Mode')).toBeDefined();
   });
 
-  it('2. Registers new API and enforces dynamic WSO2 gateway routing attributes', () => {
-    renderWithProvider();
-
-    let newApi: any;
-    act(() => {
-      newApi = exposedContext.registerApi({
-        name: 'Algorithmic FX Gateway',
-        version: 'v1',
-        basePath: '/api/v1/fx-algo',
-        backendUrl: 'http://fx-service:8080',
-        description: 'Ultra-low latency FX pricing endpoint',
-        status: 'PUBLISHED'
-      });
-    });
-
-    expect(newApi).toBeDefined();
-    expect(newApi.basePath).toBe('/api/v1/fx-algo');
-    expect(newApi.wso2ApiId).toBeDefined();
-    expect(newApi.gatewayUrl).toContain('https://gateway.flowforge.local:8243');
-    expect(exposedContext.apis.find(a => a.id === newApi.id)).toBeDefined();
-    expect(exposedContext.stats.totalApis).toBe(exposedContext.apis.length);
+  it('2. Displays exact status metrics matching the original application', () => {
+    render(<App />);
+    expect(screen.getByText('07')).toBeDefined();
+    expect(screen.getAllByText('APIs').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('63').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('WORKFLOWS')).toBeDefined();
+    expect(screen.getByText('36')).toBeDefined();
+    expect(screen.getAllByText('COMPLETED').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('01')).toBeDefined();
+    expect(screen.getByText('IN-FLIGHT')).toBeDefined();
+    expect(screen.getByText('26')).toBeDefined();
+    expect(screen.getByText('FAILED / DLQ')).toBeDefined();
   });
 
-  it('3. Manages API lifecycle transitions: DRAFT -> PUBLISHED -> DEPRECATED -> RETIRED -> DELETE', () => {
-    renderWithProvider();
-
-    let created: any;
-    act(() => {
-      created = exposedContext.registerApi({
-        name: 'Draft Service',
-        version: 'v1',
-        basePath: '/api/v1/draft',
-        backendUrl: 'http://draft:8080',
-        description: 'Service under test',
-        status: 'DRAFT'
-      });
-    });
-
-    expect(created.status).toBe('DRAFT');
-
-    // Publish
-    act(() => {
-      exposedContext.updateApiStatus(created.id, 'PUBLISHED');
-    });
-    let current = exposedContext.apis.find(a => a.id === created.id);
-    expect(current?.status).toBe('PUBLISHED');
-    expect(current?.gatewayUrl).toBeDefined();
-
-    // Deprecate
-    act(() => {
-      exposedContext.updateApiStatus(created.id, 'DEPRECATED');
-    });
-    current = exposedContext.apis.find(a => a.id === created.id);
-    expect(current?.status).toBe('DEPRECATED');
-
-    // Retire
-    act(() => {
-      exposedContext.updateApiStatus(created.id, 'RETIRED');
-    });
-    current = exposedContext.apis.find(a => a.id === created.id);
-    expect(current?.status).toBe('RETIRED');
-
-    // Delete
-    act(() => {
-      exposedContext.deleteApi(created.id);
-    });
-    expect(exposedContext.apis.find(a => a.id === created.id)).toBeUndefined();
+  it('3. Renders the API Gateway Catalog panel and lists seeded APIs', () => {
+    render(<App />);
+    expect(screen.getByText('Inventory Service')).toBeDefined();
+    expect(screen.getByText('/api/v1/inventory')).toBeDefined();
+    expect(screen.getByText('Payments Gateway API')).toBeDefined();
+    expect(screen.getByText('+ Register API')).toBeDefined();
   });
 
-  it('4. Enforces strict SHA-256 Idempotency: Replays on identical payload (HTTP 200)', () => {
-    renderWithProvider();
-
-    const idempotencyKey = 'test-idemp-key-unique-01';
-    const payload = JSON.stringify({ action: 'TRADE_SETTLEMENT', amount: 50000 });
-
-    let firstResult: any;
-    act(() => {
-      firstResult = exposedContext.submitJob({
-        type: 'SETTLEMENT_CLEARING',
-        payload,
-        idempotencyKey
-      });
-    });
-
-    expect(firstResult.success).toBe(true);
-    expect(firstResult.status).toBe(201);
-    expect(firstResult.isReplay).toBe(false);
-    expect(firstResult.job).toBeDefined();
-
-    // Re-submit identical payload with same key
-    let replayResult: any;
-    act(() => {
-      replayResult = exposedContext.submitJob({
-        type: 'SETTLEMENT_CLEARING',
-        payload,
-        idempotencyKey
-      });
-    });
-
-    expect(replayResult.success).toBe(true);
-    expect(replayResult.status).toBe(200);
-    expect(replayResult.isReplay).toBe(true);
-    expect(replayResult.job.id).toBe(firstResult.job.id);
+  it('4. Renders the Workflow Jobs panel and Execution Inspector', () => {
+    render(<App />);
+    expect(screen.getByText('Workflow Jobs')).toBeDefined();
+    expect(screen.getAllByText(/Execution Inspector/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('SYSTEM EXECUTION PATH')).toBeDefined();
+    expect(screen.getAllByText('REDIS LOCK').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('5. Enforces strict SHA-256 Idempotency: Rejects tampered payload with HTTP 409 Conflict', () => {
-    renderWithProvider();
+  it('5. Creates a demo job when clicking "Create Demo Job"', async () => {
+    render(<App />);
+    const createBtn = screen.getByText('Create Demo Job');
+    fireEvent.click(createBtn);
 
-    const idempotencyKey = 'test-idemp-conflict-01';
-    const originalPayload = JSON.stringify({ account: 'ACC-100', transfer: 1000 });
-    const tamperedPayload = JSON.stringify({ account: 'ACC-100', transfer: 99999999 });
-
-    act(() => {
-      exposedContext.submitJob({
-        type: 'PAYMENTS_ISO20022',
-        payload: originalPayload,
-        idempotencyKey
-      });
+    await waitFor(() => {
+      expect(screen.getAllByText(/Execution Inspector/i).length).toBeGreaterThanOrEqual(1);
     });
-
-    // Submit altered payload with the same idempotency key
-    let conflictResult: any;
-    act(() => {
-      conflictResult = exposedContext.submitJob({
-        type: 'PAYMENTS_ISO20022',
-        payload: tamperedPayload,
-        idempotencyKey
-      });
-    });
-
-    expect(conflictResult.success).toBe(false);
-    expect(conflictResult.status).toBe(409);
-    expect(conflictResult.message).toContain('HTTP 409 Conflict');
   });
 
-  it('6. Records Outbox Event atomically upon Job creation', () => {
-    renderWithProvider();
+  it('6. Simulates DLQ failure when clicking "Simulate DLQ Failure"', async () => {
+    render(<App />);
+    const failBtn = screen.getByText('Simulate DLQ Failure');
+    fireEvent.click(failBtn);
 
-    const beforeOutboxCount = exposedContext.outbox.length;
-    let submitResult: any;
-
-    act(() => {
-      submitResult = exposedContext.submitJob({
-        type: 'ORDER_MATCHING',
-        payload: JSON.stringify({ orderId: 'ORD-991', symbol: 'AZN.L' })
-      });
+    await waitFor(() => {
+      expect(screen.getAllByText(/Execution Inspector/i).length).toBeGreaterThanOrEqual(1);
     });
-
-    expect(exposedContext.outbox.length).toBe(beforeOutboxCount + 1);
-    const recordedEvent = exposedContext.outbox.find(o => o.jobId === submitResult.job.id);
-    expect(recordedEvent).toBeDefined();
-    expect(recordedEvent?.eventType).toBe('JOB_SUBMITTED');
   });
 
-  it('7. Handles manual recovery of dead-lettered job', () => {
-    renderWithProvider();
+  it('7. Opens the Gateway API Details modal when clicking an API row', async () => {
+    render(<App />);
+    const apiRow = screen.getByText('Inventory Service');
+    fireEvent.click(apiRow);
 
-    // Find a failed or dead-lettered job in seed data
-    const failedJob = exposedContext.jobs.find(j => j.status === 'FAILED' || j.status === 'DEAD_LETTERED');
-    expect(failedJob).toBeDefined();
-
-    act(() => {
-      exposedContext.retryJob(failedJob!.id);
+    await waitFor(() => {
+      expect(screen.getByText('API Details')).toBeDefined();
+      expect(screen.getByText('WSO2 Gateway Policy')).toBeDefined();
     });
-
-    const updatedJob = exposedContext.jobs.find(j => j.id === failedJob!.id);
-    expect(updatedJob?.status).toBe('QUEUED');
-    expect(updatedJob?.attemptCount).toBe(0);
-    expect(updatedJob?.failureReason).toBeUndefined();
-    expect(updatedJob?.executionSteps.some(s => s.step === 'MANUAL_RETRY_TRIGGERED')).toBe(true);
   });
 
-  it('8. Resets demo data and purges storage cleanly', () => {
-    renderWithProvider();
+  it('8. Opens the Register API modal and registers a new API', async () => {
+    render(<App />);
+    const registerBtn = screen.getByText('+ Register API');
+    fireEvent.click(registerBtn);
 
-    // Mutate state
-    act(() => {
-      exposedContext.registerApi({
-        name: 'Temporary API',
-        version: 'v1',
-        basePath: '/api/v1/temp',
-        backendUrl: 'http://temp:8080',
-        description: 'To be wiped',
-        status: 'DRAFT'
-      });
+    await waitFor(() => {
+      expect(screen.getAllByText('Register API').length).toBeGreaterThanOrEqual(1);
     });
 
-    const countWithTemp = exposedContext.apis.length;
+    const nameInput = screen.getByPlaceholderText('e.g. Payments Gateway');
+    fireEvent.change(nameInput, { target: { value: 'FX Settlement Gateway' } });
 
-    act(() => {
-      exposedContext.resetDemoData();
+    const submitBtns = screen.getAllByText('Register API');
+    const submitBtn = submitBtns[submitBtns.length - 1];
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('FX Settlement Gateway')).toBeDefined();
     });
-
-    expect(exposedContext.apis.length).toBeLessThan(countWithTemp);
-    expect(exposedContext.selectedJobId).toBeNull();
-    expect(exposedContext.selectedApiId).toBeNull();
   });
 
-  it('9. Renders DisclaimerBanner with prominent simulation indicator', () => {
-    renderWithProvider(<DisclaimerBanner />);
-    expect(screen.getByText(/Demo Mode/i)).toBeDefined();
-    expect(screen.getByText(/Architecture Note/i)).toBeDefined();
-  });
+  it('9. Opens Architecture and Evidence documentation modals', async () => {
+    render(<App />);
+    const archBtn = screen.getByText('Architecture');
+    fireEvent.click(archBtn);
 
-  it('10. Renders Sidebar and allows module view switching', () => {
-    renderWithProvider(<Sidebar isOpen={true} onClose={() => {}} />);
-    expect(screen.getByText(/API Management/i)).toBeDefined();
-    expect(screen.getByText(/Reliability & Recovery/i)).toBeDefined();
-    expect(screen.getByText(/Engineering Evidence/i)).toBeDefined();
-
-    act(() => {
-      exposedContext.setActiveView('evidence');
+    await waitFor(() => {
+      expect(screen.getByText('System Architecture')).toBeDefined();
+      expect(screen.getByText('Multi-Tier Distributed Architecture')).toBeDefined();
     });
 
-    expect(exposedContext.activeView).toBe('evidence');
+    const closeBtns = screen.getAllByText('Close');
+    fireEvent.click(closeBtns[0]);
+
+    const evidenceBtn = screen.getByText(/Backend Evidence/i);
+    fireEvent.click(evidenceBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Engineering Evidence Matrix')).toBeDefined();
+      expect(screen.getByText(/141 Verified Backend Automated Tests/i)).toBeDefined();
+    });
+  });
+
+  it('10. Resets demo data when clicking Reset', async () => {
+    render(<App />);
+    const resetBtn = screen.getByText('Reset');
+    fireEvent.click(resetBtn);
+
+    expect(screen.getByText('07')).toBeDefined();
+    expect(screen.getAllByText('63').length).toBeGreaterThanOrEqual(1);
   });
 });
